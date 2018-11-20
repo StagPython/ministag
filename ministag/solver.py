@@ -57,6 +57,37 @@ class RayleighBenardStokes:
     def _heat(self):
         pass#self.temp = None
 
+    def _del2temp(self):
+        """Computes Laplacian of temperature
+
+        zero flux BC on the vertical sides
+        T = 0 at the top
+        T = 1 at the bottom
+        """
+        delsqT = np.zeros(self.temp.shape)
+        dsq =  (self.n_z -1 ) ** 2 # inverse of dz ^ 2
+            # should be generalized for non-square grids
+        
+        for i in range(0, self.n_x):
+            im = max(i-1, 0)
+            ip = min(i+1, self.n_x)
+            
+            for j in range(0, self.n_z):
+                T_xm = self.temp(im, j)
+                T_xp = self.temp(ip, j)
+                if j==0: # enforce bottom BC
+                    T_zm = 2 - self.temp(i, j)
+                else:
+                    T_zm = self.temp(i, j - 1)
+                if j==self.n_z:
+                    T_zp = - self.temp(i, j + 1)
+                else:
+                    T_zp = self.temp(i, j + 1)
+
+                delsqT(i, j) = (T_xm+T_xp+T_zm+T_zp-4*T(i,j)) * dsq
+
+        return delsqT
+        
     def solve(self, restart=None):
         """Resolution of asked problem.
 
