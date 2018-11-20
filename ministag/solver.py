@@ -25,6 +25,7 @@ class RayleighBenardStokes:
         self.dynp = None
         self.eta = None
         self._restart = pars.get('restart', {}).get('file', None)
+        self._lumat = None
 
     def _outfile_stem(self, name, istep):
         return 'output/{}{:08d}'.format(name, istep)
@@ -179,9 +180,10 @@ class RayleighBenardStokes:
                         mcoef(ieqc, ieqz + idz, odz)
                 rhs[ieqc] = 0
 
-        fsolve = factorized(sp.coo_matrix((coefs, (rows, cols)),
-                                          shape=(rhs.size, rhs.size)))
-        sol = fsolve(rhs)
+        if self.var_visc or self._lumat is None:
+            self._lumat = factorized(sp.csc_matrix((coefs, (rows, cols)),
+                                                   shape=(rhs.size, rhs.size)))
+        sol = self._lumat(rhs)
         self.v_x = np.reshape(sol[::3], (self.n_x, self.n_z))
         self.v_z = np.reshape(sol[1::3], (self.n_x, self.n_z))
         self.dynp = np.reshape(sol[2::3], (self.n_x, self.n_z))
@@ -208,6 +210,7 @@ class RayleighBenardStokes:
             # time series
             if istep % self.nwrite == 0:
                 self._save(istep)
+        self._lumat = None
 
     def set_numerical(self, n_x=32, n_z=32, nsteps=100, nwrite=10):
         """Set numerical parameters.
