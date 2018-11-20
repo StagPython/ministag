@@ -73,21 +73,31 @@ class RayleighBenardStokes:
             ip = min(i+1, self.n_x)
             
             for j in range(0, self.n_z):
-                T_xm = self.temp(im, j)
-                T_xp = self.temp(ip, j)
+                T_xm = self.temp[im, j]
+                T_xp = self.temp[ip, j]
                 if j==0: # enforce bottom BC
-                    T_zm = 2 - self.temp(i, j)
+                    T_zm = 2 - self.temp[i, j]
                 else:
-                    T_zm = self.temp(i, j - 1)
+                    T_zm = self.temp[i, j - 1]
                 if j==self.n_z:
-                    T_zp = - self.temp(i, j + 1)
+                    T_zp = - self.temp[i, j + 1]
                 else:
-                    T_zp = self.temp(i, j + 1)
+                    T_zp = self.temp[i, j + 1]
 
-                delsqT(i, j) = (T_xm+T_xp+T_zm+T_zp-4*T(i,j)) * dsq
+                delsqT[i, j] = (T_xm + T_xp + T_zm + T_zp - 4 * self.temp[i,j]) * dsq
 
         return delsqT
-        
+
+    def _donor_cell_advection(self):
+        """Donor cell advection div(v T)"""
+        Tnew = np.zeros(self.temp.shape)
+
+        for i in range(0, self.n_x):
+            for j in range(0, self.n_z):
+                pass
+
+        return Tnew
+
     def solve(self, restart=None):
         """Resolution of asked problem.
 
