@@ -241,17 +241,17 @@ class RayleighBenardStokes:
         v_x = self.v_x
         v_z = self.v_z
 
-        for i in range(0, self.n_x - 1):
-            for j in range(0, self.n_z):
+        for i in range(self.n_x):
+            for j in range(self.n_z):
                 if i > 0:
-                    flux_xm = temp[i - 1, j] * v_x[i, j] if v_x[i + 1, j] > 0 else\
+                    flux_xm = temp[i - 1, j] * v_x[i, j] if v_x[i, j] > 0 else\
                       temp[i, j] * v_x[i, j]
                 else:
                     flux_xm = 0
 
                 if i < self.n_x - 1:
-                    flux_xp = temp[i, j] * v_x[i, j] if v_x[i+1, j] > 0 else\
-                      temp[i, j] * v_x[i+1, j]
+                    flux_xp = temp[i, j] * v_x[i+1, j] if v_x[i+1, j] > 0 else\
+                      temp[i+1, j] * v_x[i+1, j]
                 else:
                     flux_xp = 0
 
@@ -262,8 +262,8 @@ class RayleighBenardStokes:
                     flux_zm = 0
 
                 if j < self.n_z - 1:
-                    flux_zp = temp[i, j] * v_z[i, j] if v_z [i, j+1] >= 0 else\
-                      temp[i, j] * v_z[i, j+1]
+                    flux_zp = temp[i, j] * v_z[i, j+1] if v_z [i, j+1] >= 0 else\
+                      temp[i, j+1] * v_z[i, j+1]
                 else:
                     flux_zp = 0
                 dtemp = (flux_xm-flux_xp+flux_zm-flux_zp) * self.n_z
