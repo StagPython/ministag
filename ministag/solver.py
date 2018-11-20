@@ -199,7 +199,7 @@ class RayleighBenardStokes:
         dt = np.minimum(dt_diff, dt_adv)
         self.time += dt
         # diffusion and internal heating
-        self.temp += dt * (self._del2temp() + self.heating)
+        self.temp += dt * (self._del2temp() + self.int_heat)
         # advection
         self.temp = self._donor_cell_advection(dt)
         
@@ -217,7 +217,7 @@ class RayleighBenardStokes:
         
         for i in range(0, self.n_x):
             im = max(i-1, 0)
-            ip = min(i+1, self.n_x)
+            ip = min(i+1, self.n_x - 1)
             
             for j in range(0, self.n_z):
                 T_xm = self.temp[im, j]
@@ -226,8 +226,8 @@ class RayleighBenardStokes:
                     T_zm = 2 - self.temp[i, j]
                 else:
                     T_zm = self.temp[i, j - 1]
-                if j==self.n_z:
-                    T_zp = - self.temp[i, j + 1]
+                if j==self.n_z - 1:
+                    T_zp = - self.temp[i, j]
                 else:
                     T_zp = self.temp[i, j + 1]
 
@@ -250,7 +250,7 @@ class RayleighBenardStokes:
                 else:
                     flux_xm = 0
 
-                if i < self.n_x:
+                if i < self.n_x - 1:
                     flux_xp = temp[i, j] * v_x[i, j] if v_x[i+1, j] > 0 else\
                       temp[i, j] * v_x[i+1, j]
                 else:
@@ -262,7 +262,7 @@ class RayleighBenardStokes:
                 else:
                     flux_zm = 0
 
-                if j < nz:
+                if j < self.n_z - 1:
                     flux_zp = temp[i, j] * v_z[i, j] if v_z [i, j+1] >= 0 else\
                       temp[i, j] * v_z[i, j+1]
                 else:
@@ -308,7 +308,7 @@ class RayleighBenardStokes:
         self.nsteps = nsteps
         self.nwrite = nwrite
 
-    def set_physical(self, ranum=3e3, int_heat=0, temp_init=0.5,
+    def set_physical(self, time=0, ranum=3e3, int_heat=0, temp_init=0.5,
                      var_visc=False, var_visc_temp=1e6, var_visc_depth=1e2):
         """Set physical parameters.
 
@@ -322,6 +322,7 @@ class RayleighBenardStokes:
             var_visc_depth (float): viscosity contrast with depth, default 1e2.
                 Ignored if var_visc is False.
         """
+        self.time = time
         self.ranum = ranum
         self.int_heat = int_heat
         self.temp_init = temp_init
