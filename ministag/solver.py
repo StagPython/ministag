@@ -189,8 +189,21 @@ class RayleighBenardStokes:
         self.dynp = np.reshape(sol[2::3], (self.n_x, self.n_z))
 
     def _heat(self):
-        pass#self.temp = None
-
+        """Advection diffusion equation for time stepping"""
+        
+        # compute stabe timestep
+        # assumes n_x=n_z. To be generalized
+        dt_diff = 0.1 / self.n_z ** 2
+        vmax = np.maximum(np.amax(np.abs(self.v_x)), np.amax(np.abs(self.v_z)))
+        dt_adv = 0.5 / self.n_z / vmax
+        dt = np.minimum(dt_diff, dt_adv)
+        self.time += dt
+        # diffusion and internal heating
+        self.temp += dt * (self._del2temp() + self.heating)
+        # advection
+        self.temp = self._donor_cell_advection(dt)
+        
+        
     def _del2temp(self):
         """Computes Laplacian of temperature
 
@@ -222,7 +235,7 @@ class RayleighBenardStokes:
 
         return delsqT
 
-    def _donor_cell_advection(self):
+    def _donor_cell_advection(self, dt):
         """Donor cell advection div(v T)"""
         temp_new = np.zeros(self.temp.shape)
         temp = self.temp
@@ -256,7 +269,7 @@ class RayleighBenardStokes:
                     flux_zp = 0
                 dtemp = (flux_xm-flux_xp+flux_zm-flux_zp) * self.n_z
                     # assumes d_x = d_z. To be generalized
-                temp_new[i, j] = temp[i, j] + dtemp * self.dt
+                temp_new[i, j] = temp[i, j] + dtemp * dt
 
         return temp_new
 
