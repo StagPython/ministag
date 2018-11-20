@@ -193,7 +193,7 @@ class RayleighBenardStokes:
         
         # compute stabe timestep
         # assumes n_x=n_z. To be generalized
-        dt_diff = 0.1 / self.n_z ** 2
+        dt_diff = 0.1 / self.n_z**2
         vmax = np.maximum(np.amax(np.abs(self.v_x)), np.amax(np.abs(self.v_z)))
         dt_adv = 0.5 / self.n_z / vmax
         dt = np.minimum(dt_diff, dt_adv)
@@ -202,8 +202,7 @@ class RayleighBenardStokes:
         self.temp += dt * (self._del2temp() + self.int_heat)
         # advection
         self.temp = self._donor_cell_advection(dt)
-        
-        
+
     def _del2temp(self):
         """Computes Laplacian of temperature
 
@@ -212,13 +211,13 @@ class RayleighBenardStokes:
         T = 1 at the bottom
         """
         delsqT = np.zeros(self.temp.shape)
-        dsq =  (self.n_z -1 ) ** 2 # inverse of dz ^ 2
+        dsq =  self.n_z**2 # inverse of dz ^ 2
             # should be generalized for non-square grids
-        
-        for i in range(0, self.n_x):
+
+        for i in range(self.n_x):
             im = max(i-1, 0)
             ip = min(i+1, self.n_x - 1)
-            
+
             for j in range(0, self.n_z):
                 T_xm = self.temp[im, j]
                 T_xp = self.temp[ip, j]
