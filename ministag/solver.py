@@ -242,7 +242,7 @@ class RayleighBenardStokes:
         v_x = self.v_x
         v_z = self.v_z
 
-        for i in range(0, self.n_x):
+        for i in range(0, self.n_x - 1):
             for j in range(0, self.n_z):
                 if i > 0:
                     flux_xm = temp[i - 1, j] * v_x[i, j] if v_x[i + 1, j] > 0 else\
