@@ -36,7 +36,7 @@ class RayleighBenardStokes:
                 self.temp = fld['T']
         else:
             self.temp = self.temp_init + \
-                0.01 * np.random.rand(self.n_x, self.n_z)
+                0.01 * np.outer(np.sin(np.pi * np.linspace(0, self.n_x / self.n_z, self.n_x)), np.ones(self.n_z))
 
     def _save(self, istep):
         pathlib.Path('output').mkdir(exist_ok=True)
@@ -189,9 +189,9 @@ class RayleighBenardStokes:
             self._lumat = factorized(sp.csc_matrix((coefs, (rows, cols)),
                                                    shape=(rhs.size, rhs.size)))
         sol = self._lumat(rhs)
-        self.v_x = np.reshape(sol[::3], (self.n_x, self.n_z))
-        self.v_z = np.reshape(sol[1::3], (self.n_x, self.n_z))
-        self.dynp = np.reshape(sol[2::3], (self.n_x, self.n_z))
+        self.v_x = np.reshape(sol[::3], (self.n_z, self.n_x)).T
+        self.v_z = np.reshape(sol[1::3], (self.n_z, self.n_x)).T
+        self.dynp = np.reshape(sol[2::3], (self.n_z, self.n_x)).T
         self.dynp -= np.mean(self.dynp)
 
     def _heat(self):
