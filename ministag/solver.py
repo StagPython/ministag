@@ -187,6 +187,7 @@ class RayleighBenardStokes:
         self.v_x = np.reshape(sol[::3], (self.n_x, self.n_z))
         self.v_z = np.reshape(sol[1::3], (self.n_x, self.n_z))
         self.dynp = np.reshape(sol[2::3], (self.n_x, self.n_z))
+        self.dynp -= np.mean(self.dynp)
 
     def _heat(self):
         """Advection diffusion equation for time stepping"""
