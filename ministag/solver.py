@@ -45,9 +45,14 @@ class RayleighBenardStokes:
 
         xgrid = np.linspace(0, self.n_x / self.n_z, self.n_x)
         zgrid = np.linspace(0, 1, self.n_z)
-        surf = plt.pcolormesh(xgrid, zgrid, self.temp.T, shading='gouraud')
-        cbar = plt.colorbar(surf)
+        fig, axis = plt.subplots()
+        surf = axis.pcolormesh(xgrid, zgrid, self.temp.T, cmap='RdBu_r',
+                               shading='gouraud')
+        cbar = plt.colorbar(surf, shrink=0.5)
         cbar.set_label('Temperature')
+        axis.set_adjustable('box')
+        axis.set_xlim(0, self.n_x / self.n_z)
+        axis.set_xlim(0, 1)
         plt.axis('equal')
         plt.axis('off')
         plt.savefig(self._outfile_stem('T', istep) + '.pdf',
