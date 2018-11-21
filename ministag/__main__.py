@@ -2,6 +2,7 @@
 
 import importlib
 import signal
+import sys
 
 
 def _sigint_handler(*_):
