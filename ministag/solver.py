@@ -60,8 +60,8 @@ class RayleighBenardStokes:
         plt.close()
 
     def _stokes(self):
-        d_z = 1 / self.n_z
         if self.var_visc:
+            d_z = 1 / self.n_z
             a_visc = np.log(self.var_visc_temp)
             b_visc = np.log(self.var_visc_depth)
             depth = 0.5 - np.linspace(0.5 * d_z, 1 - 0.5 * d_z, self.n_z)
@@ -242,7 +242,7 @@ class RayleighBenardStokes:
 
     def _donor_cell_advection(self, dt):
         """Donor cell advection div(v T)"""
-        temp_new = np.zeros(self.temp.shape)
+        temp_new = np.zeros_like(self.temp)
         temp = self.temp
         v_x = self.v_x
         v_z = self.v_z
