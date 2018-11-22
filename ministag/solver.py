@@ -58,6 +58,32 @@ class RayleighBenardStokes:
         plt.savefig(self._outfile_stem('T', istep) + '.pdf',
                     bbox_inches='tight')
         plt.close()
+        fig, axis = plt.subplots()
+        surf = axis.pcolormesh(xgrid, zgrid, self.v_x.T, cmap='RdBu_r',
+                               shading='gouraud')
+        cbar = plt.colorbar(surf, shrink=0.5)
+        cbar.set_label('vx')
+        axis.set_adjustable('box')
+        axis.set_xlim(0, self.n_x / self.n_z)
+        axis.set_xlim(0, 1)
+        plt.axis('equal')
+        plt.axis('off')
+        plt.savefig(self._outfile_stem('vx', istep) + '.pdf',
+                    bbox_inches='tight')
+        plt.close()
+        fig, axis = plt.subplots()
+        surf = axis.pcolormesh(xgrid, zgrid, self.v_z.T, cmap='RdBu_r',
+                               shading='gouraud')
+        cbar = plt.colorbar(surf, shrink=0.5)
+        cbar.set_label('Temperature')
+        axis.set_adjustable('box')
+        axis.set_xlim(0, self.n_x / self.n_z)
+        axis.set_xlim(0, 1)
+        plt.axis('equal')
+        plt.axis('off')
+        plt.savefig(self._outfile_stem('vz', istep) + '.pdf',
+                    bbox_inches='tight')
+        plt.close()
 
     def _stokes(self):
         if self.var_visc:
