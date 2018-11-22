@@ -60,7 +60,7 @@ class RayleighBenardStokes:
         cbar.set_label('Temperature')
         axis.set_adjustable('box')
         axis.set_xlim(0, self.n_x / self.n_z)
-        axis.set_xlim(0, 1)
+        axis.set_ylim(0, 1)
         plt.axis('equal')
         plt.axis('off')
         plt.savefig(self._outfile_stem('T', istep) + '.pdf',
@@ -73,7 +73,7 @@ class RayleighBenardStokes:
         cbar.set_label('vx')
         axis.set_adjustable('box')
         axis.set_xlim(0, self.n_x / self.n_z)
-        axis.set_xlim(0, 1)
+        axis.set_ylim(0, 1)
         plt.axis('equal')
         plt.axis('off')
         plt.savefig(self._outfile_stem('vx', istep) + '.pdf',
@@ -86,7 +86,7 @@ class RayleighBenardStokes:
         cbar.set_label('Temperature')
         axis.set_adjustable('box')
         axis.set_xlim(0, self.n_x / self.n_z)
-        axis.set_xlim(0, 1)
+        axis.set_ylim(0, 1)
         plt.axis('equal')
         plt.axis('off')
         plt.savefig(self._outfile_stem('vz', istep) + '.pdf',
