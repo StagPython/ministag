@@ -152,13 +152,13 @@ class RayleighBenardStokes:
 
                 # z-momentum
                 if iz > 0 and not zmom_zero_eta:
-                    mcoef(ieqz, ieqz, -2 * odz2 * (2 * etaii_c + 2 * etaii_zm +
-                                                   etaxz_c + etaxz_xp))
+                    mcoef(ieqz, ieqz, -odz2 * (2 * etaii_c + 2 * etaii_zm +
+                                               etaxz_c + etaxz_xp))
                     mcoef(ieqz, ieqz - idz, 2 * odz2 * etaii_zm)
                     mcoef(ieqz, ieqx, -odz2 * etaxz_c)
                     mcoef(ieqz, ieqx - idz, odz2 * etaxz_c)
                     mcoef(ieqz, ieqc, -odz)
-                    mcoef(ieqz, ieqc - ieqz, odz)
+                    mcoef(ieqz, ieqc - idz, odz)
 
                     if iz + 1 < self.n_z:
                         mcoef(ieqz, ieqz + idz, 2 * odz2 * etaii_c)
