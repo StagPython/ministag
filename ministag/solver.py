@@ -19,6 +19,7 @@ class RayleighBenardStokes:
         pars = toml.load(parfile) if parfile is not None else {}
         self.set_numerical(**pars.get('numerical', {}))
         self.set_physical(**pars.get('physical', {}))
+        self.time = 0
         self.temp = None
         self.v_x = None
         self.v_z = None
@@ -35,8 +36,15 @@ class RayleighBenardStokes:
             with np.load(restart) as fld:
                 self.temp = fld['T']
         else:
-            self.temp = self.temp_init + \
-                0.01 * np.outer(np.sin(np.pi * np.linspace(0, self.n_x / self.n_z, self.n_x)), np.ones(self.n_z))
+            if self.pert_init == 'sin':
+                xgrid = np.linspace(0, self.n_x / self.n_z, self.n_x)
+                zgrid = np.linspace(0, 1, self.n_z)
+                self.temp = self.temp_init + \
+                    0.01 * np.outer(np.sin(np.pi * xgrid),
+                                    np.sin(np.pi * zgrid))
+            else:
+                self.temp = self.temp_init + \
+                    0.01 * np.random.rand(self.n_x, self.n_z)
 
     def _save(self, istep):
         pathlib.Path('output').mkdir(exist_ok=True)
@@ -339,7 +347,8 @@ class RayleighBenardStokes:
         self.nsteps = nsteps
         self.nwrite = nwrite
 
-    def set_physical(self, time=0, ranum=3e3, int_heat=0, temp_init=0.5,
+    def set_physical(self, ranum=3e3, int_heat=0,
+                     temp_init=0.5, pert_init='random',
                      var_visc=False, var_visc_temp=1e6, var_visc_depth=1e2):
         """Set physical parameters.
 
@@ -347,16 +356,18 @@ class RayleighBenardStokes:
             ranum (float): Rayleigh number, default 3000.
             int_heat (float): internal heating, default 0.
             temp_init (float): average initial temperature, default 0.5.
+            pert_init (str): initial temperature perturbation, either
+                'random' or 'sin', default 'random'.
             var_visc (bool): whether viscosity is variable, default False.
             var_visc_temp (float): viscosity contrast with temperature, default
                 1e6.  Ignored if var_visc is False.
             var_visc_depth (float): viscosity contrast with depth, default 1e2.
                 Ignored if var_visc is False.
         """
-        self.time = time
         self.ranum = ranum
         self.int_heat = int_heat
         self.temp_init = temp_init
+        self.pert_init = pert_init
         self.var_visc = var_visc
         self.var_visc_temp = var_visc_temp
         self.var_visc_depth = var_visc_depth
