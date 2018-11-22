@@ -46,6 +46,23 @@ class RayleighBenardStokes:
                 self.temp = self.temp_init + \
                     0.01 * np.random.rand(self.n_x, self.n_z)
 
+    def _plot(self, istep, xgrid, zgrid, field, label, fname=None):
+        if fname is None:
+            fname = label
+        fig, axis = plt.subplots()
+        surf = axis.pcolormesh(xgrid, zgrid, field.T, cmap='RdBu_r',
+                               shading='gouraud')
+        cbar = plt.colorbar(surf, shrink=0.5)
+        cbar.set_label(label)
+        plt.axis('equal')
+        plt.axis('off')
+        axis.set_adjustable('box')
+        axis.set_xlim(0, self.n_x / self.n_z)
+        axis.set_ylim(0, 1)
+        fig.savefig(self._outfile_stem(fname, istep) + '.pdf',
+                    bbox_inches='tight')
+        plt.close(fig)
+
     def _save(self, istep):
         pathlib.Path('output').mkdir(exist_ok=True)
         fname = self._outfile_stem('fields', istep) + '.npz'
@@ -53,45 +70,9 @@ class RayleighBenardStokes:
 
         xgrid = np.linspace(0, self.n_x / self.n_z, self.n_x)
         zgrid = np.linspace(0, 1, self.n_z)
-        fig, axis = plt.subplots()
-        surf = axis.pcolormesh(xgrid, zgrid, self.temp.T, cmap='RdBu_r',
-                               shading='gouraud')
-        cbar = plt.colorbar(surf, shrink=0.5)
-        cbar.set_label('Temperature')
-        axis.set_adjustable('box')
-        axis.set_xlim(0, self.n_x / self.n_z)
-        axis.set_ylim(0, 1)
-        plt.axis('equal')
-        plt.axis('off')
-        plt.savefig(self._outfile_stem('T', istep) + '.pdf',
-                    bbox_inches='tight')
-        plt.close()
-        fig, axis = plt.subplots()
-        surf = axis.pcolormesh(xgrid, zgrid, self.v_x.T, cmap='RdBu_r',
-                               shading='gouraud')
-        cbar = plt.colorbar(surf, shrink=0.5)
-        cbar.set_label('vx')
-        axis.set_adjustable('box')
-        axis.set_xlim(0, self.n_x / self.n_z)
-        axis.set_ylim(0, 1)
-        plt.axis('equal')
-        plt.axis('off')
-        plt.savefig(self._outfile_stem('vx', istep) + '.pdf',
-                    bbox_inches='tight')
-        plt.close()
-        fig, axis = plt.subplots()
-        surf = axis.pcolormesh(xgrid, zgrid, self.v_z.T, cmap='RdBu_r',
-                               shading='gouraud')
-        cbar = plt.colorbar(surf, shrink=0.5)
-        cbar.set_label('Temperature')
-        axis.set_adjustable('box')
-        axis.set_xlim(0, self.n_x / self.n_z)
-        axis.set_ylim(0, 1)
-        plt.axis('equal')
-        plt.axis('off')
-        plt.savefig(self._outfile_stem('vz', istep) + '.pdf',
-                    bbox_inches='tight')
-        plt.close()
+        self._plot(istep, xgrid, zgrid, self.temp, 'Temperature', 'T')
+        self._plot(istep, xgrid, zgrid, self.v_x, 'vx')
+        self._plot(istep, xgrid, zgrid, self.v_z, 'vz')
 
     def _stokes(self):
         if self.var_visc:
