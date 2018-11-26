@@ -71,7 +71,7 @@ class RayleighBenardStokes:
         u_z[1:] = self.v_z[:-1]
         u_z += self.v_z
         u_z *= 0.5
-        speed = np.sqrt(u_x * u_x + u_z * u_z)
+        speed = np.sqrt(u_x ** 2 + u_z ** 2)
         # plot the streamlines
         lw = 2*speed / speed.max()
         axis.streamplot(xgrid, zgrid, u_x.T, u_z.T, color='k',
@@ -312,13 +312,32 @@ class RayleighBenardStokes:
         restart = self._restart
         if restart is None:
             restart = -1
+
+        tempseries = np.empty(8)
+        totseries = np.empty([1, 8])
+
         for istep in range(restart + 1, self.nsteps + 1):
+            # compute velocity
             self._stokes()
+            # save diagnostics in table
+            tempseries[0] = self.time
+            tempseries[1] = np.amin(self.temp)
+            tempseries[2] =  np.trapz(np.trapz((self.temp))) / (self.n_x + self.n_z)
+            tempseries[3] = np.amax(self.temp)
+            ekin = np.trapz(np.trapz(self.v_x ** 2 + self.v_z ** 2)) / (self.n_x + self.n_z)
+            tempseries[4] = np.sqrt(ekin)
+            tempseries[5] = np.sqrt(np.trapz(self.v_x[:, self.n_z - 1] ** 2) / self.n_x) 
+            tempseries[6] = 2 * self.n_z * np.trapz(1 - self.temp[:, 1]) / self.n_x
+            tempseries[7] = 2 * self.n_z * np.trapz(self.temp[:, self.n_z - 1]) / self.n_x
+            totseries = np.vstack([totseries, tempseries])
+            # temperature at the next time step
             self._heat()
             # time series
             if istep % self.nwrite == 0:
+                print('saving timestep: ', istep)
                 self._save(istep)
         self._lumat = None
+        np.save('timeseries', totseries)
 
     def set_numerical(self, n_x=32, n_z=32, nsteps=100, nwrite=10):
         """Set numerical parameters.
