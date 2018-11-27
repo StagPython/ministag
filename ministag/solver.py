@@ -322,13 +322,18 @@ class RayleighBenardStokes:
             # save diagnostics in table
             tempseries[0] = self.time
             tempseries[1] = np.amin(self.temp)
-            tempseries[2] =  np.trapz(np.trapz((self.temp))) / (self.n_x + self.n_z)
+            # tempseries[2] =  np.trapz(np.trapz((self.temp))) / (self.n_x * self.n_z)
+            tempseries[2] =  np.mean(self.temp)
             tempseries[3] = np.amax(self.temp)
-            ekin = np.trapz(np.trapz(self.v_x ** 2 + self.v_z ** 2)) / (self.n_x + self.n_z)
+            # ekin = np.trapz(np.trapz(self.v_x ** 2 + self.v_z ** 2)) / (self.n_x * self.n_z)
+            ekin = np.mean(self.v_x ** 2 + self.v_z ** 2)
             tempseries[4] = np.sqrt(ekin)
-            tempseries[5] = np.sqrt(np.trapz(self.v_x[:, self.n_z - 1] ** 2) / self.n_x) 
-            tempseries[6] = 2 * self.n_z * np.trapz(1 - self.temp[:, 1]) / self.n_x
-            tempseries[7] = 2 * self.n_z * np.trapz(self.temp[:, self.n_z - 1]) / self.n_x
+            # tempseries[5] = np.sqrt(np.trapz(self.v_x[:, self.n_z - 1] ** 2) / self.n_x) 
+            tempseries[5] = np.sqrt(np.mean(self.v_x[:, self.n_z - 1] ** 2))
+            # tempseries[6] = 2 * self.n_z * np.trapz(1 - self.temp[:, 1]) / self.n_x
+            tempseries[6] = 2 * self.n_z * (1 - np.mean(self.temp[:, 0]))
+            # tempseries[7] = 2 * self.n_z * np.trapz(self.temp[:, self.n_z - 1]) / self.n_x
+            tempseries[7] = 2 * self.n_z * np.mean(self.temp[:, self.n_z - 1])
             totseries = np.vstack([totseries, tempseries])
             # temperature at the next time step
             self._heat()
