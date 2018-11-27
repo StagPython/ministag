@@ -4,7 +4,7 @@ import scipy.sparse as sp
 import matplotlib.pyplot as plt
 import numpy as np
 import toml
-import os.path
+
 
 class RayleighBenardStokes:
 
@@ -16,7 +16,7 @@ class RayleighBenardStokes:
         Args:
             parfile (path-like): path to the parameters file.
         """
-        pars = toml.load(parfile) if parfile is not None and os.path.exists(parfile) else {}
+        pars = toml.load(parfile) if parfile is not None else {}
         self.set_numerical(**pars.get('numerical', {}))
         self.set_physical(**pars.get('physical', {}))
         self.time = 0
