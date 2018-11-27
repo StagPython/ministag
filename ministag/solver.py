@@ -33,7 +33,7 @@ class RayleighBenardStokes:
 
     def _init_fields(self):
         if self._restart is not None:
-            with np.load(restart) as fld:
+            with np.load(self._restart) as fld:
                 self.temp = fld['T']
         else:
             if self.pert_init == 'sin':
