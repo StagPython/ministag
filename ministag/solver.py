@@ -382,3 +382,22 @@ class RayleighBenardStokes:
         self.var_visc = var_visc
         self.var_visc_temp = var_visc_temp
         self.var_visc_depth = var_visc_depth
+
+    def dump_pars(self, parfile):
+        """Dump configuration.
+
+        Args:
+            parfile (pathlib.Path): path of the par file where the
+                configuration should be dumped.
+        """
+        pars = {
+            'numerical': {
+                par: getattr(self, par) for par in (
+                    'n_x', 'n_z', 'nsteps', 'nwrite')},
+            'physical': {
+                par: getattr(self, par) for par in (
+                    'ranum', 'int_heat', 'temp_init', 'pert_init',
+                    'var_visc', 'var_visc_temp', 'var_visc_depth')},
+        }
+        with parfile.open('w') as pf:
+            toml.dump(pars, pf)
