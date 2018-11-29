@@ -15,6 +15,13 @@ def _sigint_handler(*_):
 def main():
     """Entry point."""
     signal.signal(signal.SIGINT, _sigint_handler)
+    print(r"""
+        {_}
+        /=-'
+  )____//
+ _//---\|_
+/         /
+""")
     solver = importlib.import_module('ministag.solver')
     par = pathlib.Path('par.toml')
     rb2d = solver.RayleighBenardStokes(par if par.is_file() else None)
