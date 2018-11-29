@@ -299,12 +299,13 @@ class RayleighBenardStokes:
 
         return temp_new
 
-    def solve(self, restart=None):
+    def solve(self, restart=None, progress=False):
         """Resolution of asked problem.
 
         Args:
             restart (path-like): path to npz file defining the temperature
                 file.
+            progress (bool): output progress.
         """
         if restart is not None:
             self._restart = restart
@@ -313,10 +314,13 @@ class RayleighBenardStokes:
         if restart is None:
             restart = -1
 
+        step_msg = '\rstep: {{:{}d}}/{}'.format(len(str(self.nsteps)), self.nsteps)
         tempseries = np.empty(8)
         totseries = np.empty([1, 8])
 
         for istep in range(restart + 1, self.nsteps + 1):
+            if progress:
+                print(step_msg.format(istep), end='')
             # compute velocity
             self._stokes()
             # save diagnostics in table
@@ -339,8 +343,9 @@ class RayleighBenardStokes:
             self._heat()
             # time series
             if istep % self.nwrite == 0:
-                print('saving timestep: ', istep)
                 self._save(istep)
+        if progress:
+            print()
         self._lumat = None
         np.save('timeseries', totseries)
 
