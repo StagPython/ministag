@@ -22,7 +22,7 @@ setup(
     python_requires='>=3.5',
     packages=['ministag'],
     entry_points={
-        'console_scripts': ['stagpy = stagpy.__main__:main']
+        'console_scripts': ['ministag = ministag.__main__:main']
     },
     install_requires=DEPENDENCIES,
 )
