@@ -4,6 +4,7 @@ with open('README.rst') as rdm:
     README = rdm.read()
 
 DEPENDENCIES = [
+    'h5py>=2.8',
     'numpy>=1.15',
     'scipy>=1.0',
     'matplotlib>=3.0',

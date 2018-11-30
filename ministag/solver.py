@@ -1,5 +1,6 @@
 import pathlib
 from scipy.sparse.linalg import factorized
+import h5py
 import scipy.sparse as sp
 import matplotlib.pyplot as plt
 import numpy as np
@@ -299,6 +300,20 @@ class RayleighBenardStokes:
 
         return temp_new
 
+    def _timeseries(self):
+        """Time series diagnostic for one step."""
+        tseries = np.empty(8)
+        tseries[0] = self.time
+        tseries[1] = np.amin(self.temp)
+        tseries[2] =  np.mean(self.temp)
+        tseries[3] = np.amax(self.temp)
+        ekin = np.mean(self.v_x ** 2 + self.v_z ** 2)
+        tseries[4] = np.sqrt(ekin)
+        tseries[5] = np.sqrt(np.mean(self.v_x[:, self.n_z - 1] ** 2))
+        tseries[6] = 2 * self.n_z * (1 - np.mean(self.temp[:, 0]))
+        tseries[7] = 2 * self.n_z * np.mean(self.temp[:, self.n_z - 1])
+        return tseries
+
     def solve(self, restart=None, progress=False):
         """Resolution of asked problem.
 
@@ -310,44 +325,32 @@ class RayleighBenardStokes:
         if restart is not None:
             self._restart = restart
         self._init_fields()
+        self._stokes()
         restart = self._restart
         if restart is None:
-            restart = -1
+            restart = 0
+            self._save(restart)
+            tfile = h5py.File('time.h5', 'w')
+            dset = tfile.create_dataset('series', (1, 8), maxshape=(None, 8),
+                                        data=self._timeseries())
 
         step_msg = '\rstep: {{:{}d}}/{}'.format(len(str(self.nsteps)), self.nsteps)
-        tempseries = np.empty(8)
-        totseries = np.empty([1, 8])
+        tseries = np.zeros((self.nwrite, 8))
 
         for istep in range(restart + 1, self.nsteps + 1):
             if progress:
                 print(step_msg.format(istep), end='')
-            # compute velocity
-            self._stokes()
-            # save diagnostics in table
-            tempseries[0] = self.time
-            tempseries[1] = np.amin(self.temp)
-            # tempseries[2] =  np.trapz(np.trapz((self.temp))) / (self.n_x * self.n_z)
-            tempseries[2] =  np.mean(self.temp)
-            tempseries[3] = np.amax(self.temp)
-            # ekin = np.trapz(np.trapz(self.v_x ** 2 + self.v_z ** 2)) / (self.n_x * self.n_z)
-            ekin = np.mean(self.v_x ** 2 + self.v_z ** 2)
-            tempseries[4] = np.sqrt(ekin)
-            # tempseries[5] = np.sqrt(np.trapz(self.v_x[:, self.n_z - 1] ** 2) / self.n_x) 
-            tempseries[5] = np.sqrt(np.mean(self.v_x[:, self.n_z - 1] ** 2))
-            # tempseries[6] = 2 * self.n_z * np.trapz(1 - self.temp[:, 1]) / self.n_x
-            tempseries[6] = 2 * self.n_z * (1 - np.mean(self.temp[:, 0]))
-            # tempseries[7] = 2 * self.n_z * np.trapz(self.temp[:, self.n_z - 1]) / self.n_x
-            tempseries[7] = 2 * self.n_z * np.mean(self.temp[:, self.n_z - 1])
-            totseries = np.vstack([totseries, tempseries])
-            # temperature at the next time step
             self._heat()
-            # time series
+            self._stokes()
+            tseries[(istep - 1) % self.nwrite] = self._timeseries()
             if istep % self.nwrite == 0:
                 self._save(istep)
+                dset.resize((istep + 1, 8))
+                dset[-self.nwrite:] = tseries
         if progress:
             print()
         self._lumat = None
-        np.save('timeseries', totseries)
+        tfile.close()
 
     def set_numerical(self, n_x=32, n_z=32, nsteps=100, nwrite=10):
         """Set numerical parameters.
