@@ -26,32 +26,27 @@ class RayleighBenardStokes:
         self.v_z = None
         self.dynp = None
         self.eta = None
-        self._restart = pars.get('restart', {}).get('file', None)
         self._lumat = None
 
     def _outfile_stem(self, name, istep):
         return 'output/{}{:08d}'.format(name, istep)
 
-    def _init_fields(self):
-        if self._restart is not None:
-            with np.load(self._restart) as fld:
-                self.temp = fld['T']
+    def _init_temp(self):
+        if self.pert_init == 'sin':
+            xgrid = np.linspace(0, self.n_x / self.n_z, self.n_x)
+            zgrid = np.linspace(0, 1, self.n_z)
+            self.temp = self.temp_init + \
+                0.01 * np.outer(np.sin(np.pi * xgrid),
+                                np.sin(np.pi * zgrid))
         else:
-            if self.pert_init == 'sin':
-                xgrid = np.linspace(0, self.n_x / self.n_z, self.n_x)
-                zgrid = np.linspace(0, 1, self.n_z)
-                self.temp = self.temp_init + \
-                    0.01 * np.outer(np.sin(np.pi * xgrid),
-                                    np.sin(np.pi * zgrid))
-            else:
-                self.temp = self.temp_init + \
-                    0.01 * np.random.rand(self.n_x, self.n_z)
-
+            self.temp = self.temp_init + \
+                0.01 * np.random.rand(self.n_x, self.n_z)
 
     def _save(self, istep):
         pathlib.Path('output').mkdir(exist_ok=True)
         fname = self._outfile_stem('fields', istep) + '.npz'
-        np.savez(fname, T=self.temp, vx=self.v_x, vz=self.v_z, p=self.dynp)
+        np.savez(fname, T=self.temp, vx=self.v_x, vz=self.v_z, p=self.dynp,
+                 time=self.time)
 
         xgrid = np.linspace(0, self.n_x / self.n_z, self.n_x)
         zgrid = np.linspace(0, 1, self.n_z)
@@ -314,36 +309,49 @@ class RayleighBenardStokes:
         tseries[7] = 2 * self.n_z * np.mean(self.temp[:, self.n_z - 1])
         return tseries
 
-    def solve(self, restart=None, progress=False):
+    def solve(self, progress=False):
         """Resolution of asked problem.
 
         Args:
-            restart (path-like): path to npz file defining the temperature
-                file.
             progress (bool): output progress.
         """
-        if restart is not None:
-            self._restart = restart
-        self._init_fields()
+        fstart = None
+        istart = -1
+        if self.restart:
+            for fname in pathlib.Path('output').glob('fields*.npz'):
+                ifile = int(fname.name[6:-4])
+                if ifile > istart:
+                    istart = ifile
+                    fstart = fname
+        if fstart is not None:
+            with np.load(fstart) as fld:
+                self.temp = fld['T']
+                self.time = fld['time']
+        else:
+            istart = 0
+            self._init_temp()
+            self.time = 0
         self._stokes()
-        restart = self._restart
-        if restart is None:
-            restart = 0
-            self._save(restart)
+
+        if fstart is None:
+            self._save(0)
             tfile = h5py.File('time.h5', 'w')
             dset = tfile.create_dataset('series', (1, 8), maxshape=(None, 8),
                                         data=self._timeseries())
+        else:
+            tfile = h5py.File('time.h5', 'a')
+            dset = tfile['series']
 
         step_msg = '\rstep: {{:{}d}}/{}'.format(len(str(self.nsteps)), self.nsteps)
         tseries = np.zeros((self.nwrite, 8))
 
-        for istep in range(restart + 1, self.nsteps + 1):
+        for istep in range(istart + 1, self.nsteps + 1):
             if progress:
                 print(step_msg.format(istep), end='')
             self._heat()
             self._stokes()
-            tseries[(istep - 1) % self.nwrite] = self._timeseries()
-            if istep % self.nwrite == 0:
+            tseries[(istep - 1 - istart) % self.nwrite] = self._timeseries()
+            if (istep - istart) % self.nwrite == 0:
                 self._save(istep)
                 dset.resize((istep + 1, 8))
                 dset[-self.nwrite:] = tseries
@@ -352,7 +360,8 @@ class RayleighBenardStokes:
         self._lumat = None
         tfile.close()
 
-    def set_numerical(self, n_x=32, n_z=32, nsteps=100, nwrite=10):
+    def set_numerical(self, n_x=32, n_z=32, nsteps=100, nwrite=10,
+                      restart=False):
         """Set numerical parameters.
 
         Args:
@@ -360,11 +369,13 @@ class RayleighBenardStokes:
             n_z (int): number of point in the vertical direction, default 32.
             nsteps (int): number of timesteps to perform, default 100.
             nwrite (int): save every nwrite timesteps, default 10.
+            restart (bool): look for a file to restart from, default False.
         """
         self.n_x = n_x
         self.n_z = n_z
         self.nsteps = nsteps
         self.nwrite = nwrite
+        self.restart = restart
 
     def set_physical(self, ranum=3e3, int_heat=0,
                      temp_init=0.5, pert_init='random',
@@ -401,7 +412,7 @@ class RayleighBenardStokes:
         pars = {
             'numerical': {
                 par: getattr(self, par) for par in (
-                    'n_x', 'n_z', 'nsteps', 'nwrite')},
+                    'n_x', 'n_z', 'nsteps', 'nwrite', 'restart')},
             'physical': {
                 par: getattr(self, par) for par in (
                     'ranum', 'int_heat', 'temp_init', 'pert_init',
