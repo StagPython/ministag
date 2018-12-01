@@ -336,16 +336,19 @@ class RayleighBenardStokes:
             self._init_temp()
             self.time = 0
         self._stokes()
-
-        tfilename = self.outdir / 'time.h5'
         if fstart is None:
             self._save(0)
+
+        tfilename = self.outdir / 'time.h5'
+        if fstart is None or not tfilename.exists():
             tfile = h5py.File(tfilename, 'w')
             dset = tfile.create_dataset('series', (1, 8), maxshape=(None, 8),
                                         data=self._timeseries())
+            tfstart = istart
         else:
             tfile = h5py.File(tfilename, 'a')
             dset = tfile['series']
+            tfstart = len(dset) - 1
 
         step_msg = '\rstep: {{:{}d}}/{}'.format(len(str(self.nsteps)), self.nsteps)
         tseries = np.zeros((self.nwrite, 8))
@@ -358,7 +361,7 @@ class RayleighBenardStokes:
             tseries[(istep - 1 - istart) % self.nwrite] = self._timeseries()
             if (istep - istart) % self.nwrite == 0:
                 self._save(istep)
-                dset.resize((istep + 1, 8))
+                dset.resize((istep + 1 - tfstart, 8))
                 dset[-self.nwrite:] = tseries
         if progress:
             print()
