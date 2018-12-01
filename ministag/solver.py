@@ -11,13 +11,15 @@ class RayleighBenardStokes:
 
     """Solver of Rayleigh Benard convection at infinite Prandtl number."""
 
-    def __init__(self, parfile=None):
+    def __init__(self, outdir='output', parfile=None):
         """Initialization of instance:
 
         Args:
+            outdir (path-like): path to the output directory.
             parfile (path-like): path to the parameters file.
         """
         pars = toml.load(parfile) if parfile is not None else {}
+        self.outdir = pathlib.Path(outdir)
         self.set_numerical(**pars.get('numerical', {}))
         self.set_physical(**pars.get('physical', {}))
         self.time = 0
@@ -28,8 +30,11 @@ class RayleighBenardStokes:
         self.eta = None
         self._lumat = None
 
-    def _outfile_stem(self, name, istep):
-        return 'output/{}{:08d}'.format(name, istep)
+    def _outfile(self, name, istep, ext=None):
+        fname = '{}{:08d}'.format(name, istep)
+        if ext is not None:
+            fname += '.{}'.format(ext)
+        return self.outdir / fname
 
     def _init_temp(self):
         if self.pert_init == 'sin':
@@ -43,8 +48,8 @@ class RayleighBenardStokes:
                 0.01 * np.random.rand(self.n_x, self.n_z)
 
     def _save(self, istep):
-        pathlib.Path('output').mkdir(exist_ok=True)
-        fname = self._outfile_stem('fields', istep) + '.npz'
+        self.outdir.mkdir(exist_ok=True)
+        fname = self._outfile('fields', istep, 'npz')
         np.savez(fname, T=self.temp, vx=self.v_x, vz=self.v_z, p=self.dynp,
                  time=self.time)
 
@@ -72,8 +77,7 @@ class RayleighBenardStokes:
         lw = 2*speed / speed.max()
         axis.streamplot(xgrid, zgrid, u_x.T, u_z.T, color='k',
                             linewidth=lw.T)
-        fig.savefig(self._outfile_stem('T_v', istep) + '.pdf',
-                    bbox_inches='tight')
+        fig.savefig(self._outfile('T_v', istep, 'pdf'), bbox_inches='tight')
         plt.close(fig)
 
     def _stokes(self):
@@ -318,7 +322,7 @@ class RayleighBenardStokes:
         fstart = None
         istart = -1
         if self.restart:
-            for fname in pathlib.Path('output').glob('fields*.npz'):
+            for fname in self.outdir.glob('fields*.npz'):
                 ifile = int(fname.name[6:-4])
                 if ifile > istart:
                     istart = ifile
@@ -333,13 +337,14 @@ class RayleighBenardStokes:
             self.time = 0
         self._stokes()
 
+        tfilename = self.outdir / 'time.h5'
         if fstart is None:
             self._save(0)
-            tfile = h5py.File('time.h5', 'w')
+            tfile = h5py.File(tfilename, 'w')
             dset = tfile.create_dataset('series', (1, 8), maxshape=(None, 8),
                                         data=self._timeseries())
         else:
-            tfile = h5py.File('time.h5', 'a')
+            tfile = h5py.File(tfilename, 'a')
             dset = tfile['series']
 
         step_msg = '\rstep: {{:{}d}}/{}'.format(len(str(self.nsteps)), self.nsteps)
