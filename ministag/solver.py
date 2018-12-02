@@ -1,5 +1,6 @@
 from operator import setitem
 import pathlib
+import sys
 from scipy.sparse.linalg import factorized
 import h5py
 import scipy.sparse as sp
@@ -110,7 +111,6 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
                 0.01 * np.random.rand(self.n_x, self.n_z)
 
     def _save(self, istep):
-        self.outdir.mkdir(exist_ok=True)
         fname = self._outfile('fields', istep, 'npz')
         np.savez(fname, T=self.temp, vx=self.v_x, vz=self.v_z, p=self.dynp,
                  time=self.time)
@@ -389,6 +389,13 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
                 if ifile > istart:
                     istart = ifile
                     fstart = fname
+        elif self.outdir.is_dir():
+            print('Output directory already exists.',
+                  'Resuming may lead to loss of data.')
+            answer = input('Keep on going anyway (y/N)? ')
+            if answer.lower() != 'y':
+                sys.exit()
+        self.outdir.mkdir(exist_ok=True)
         if fstart is not None:
             with np.load(fstart) as fld:
                 self.temp = fld['T']
