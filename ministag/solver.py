@@ -31,6 +31,9 @@ CONF_DEFAULT = {
 }
 
 
+_NTSERIES = 9
+
+
 # these two helpers are necessary to capture section and opt in the closure
 def _getter(section, opt):
     return lambda self: self._conf[section][opt]
@@ -361,18 +364,19 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
 
         return temp_new
 
-    def _timeseries(self):
+    def _timeseries(self, istep):
         """Time series diagnostic for one step."""
-        tseries = np.empty(8)
-        tseries[0] = self.time
-        tseries[1] = np.amin(self.temp)
-        tseries[2] =  np.mean(self.temp)
-        tseries[3] = np.amax(self.temp)
+        tseries = np.empty(_NTSERIES)
+        tseries[0] = istep
+        tseries[1] = self.time
+        tseries[2] = np.amin(self.temp)
+        tseries[3] =  np.mean(self.temp)
+        tseries[4] = np.amax(self.temp)
         ekin = np.mean(self.v_x ** 2 + self.v_z ** 2)
-        tseries[4] = np.sqrt(ekin)
-        tseries[5] = np.sqrt(np.mean(self.v_x[:, self.n_z - 1] ** 2))
-        tseries[6] = 2 * self.n_z * (1 - np.mean(self.temp[:, 0]))
-        tseries[7] = 2 * self.n_z * np.mean(self.temp[:, self.n_z - 1])
+        tseries[5] = np.sqrt(ekin)
+        tseries[6] = np.sqrt(np.mean(self.v_x[:, self.n_z - 1] ** 2))
+        tseries[7] = 2 * self.n_z * (1 - np.mean(self.temp[:, 0]))
+        tseries[8] = 2 * self.n_z * np.mean(self.temp[:, self.n_z - 1])
         return tseries
 
     def solve(self, progress=False):
@@ -405,24 +409,25 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
         tfilename = self.outdir / 'time.h5'
         if fstart is None or not tfilename.exists():
             tfile = h5py.File(tfilename, 'w')
-            dset = tfile.create_dataset('series', (1, 8), maxshape=(None, 8),
-                                        data=self._timeseries())
+            dset = tfile.create_dataset('series', (1, _NTSERIES),
+                                        maxshape=(None, _NTSERIES),
+                                        data=self._timeseries(istart))
         else:
             tfile = h5py.File(tfilename, 'a')
             dset = tfile['series']
 
         step_msg = '\rstep: {{:{}d}}/{}'.format(len(str(self.nsteps)), self.nsteps)
-        tseries = np.zeros((self.nwrite, 8))
+        tseries = np.zeros((self.nwrite, _NTSERIES))
 
-        for istep in range(istart + 1, self.nsteps + 1):
+        for irun, istep in enumerate(range(istart + 1, self.nsteps + 1)):
             if progress:
                 print(step_msg.format(istep), end='')
             self._heat()
             self._stokes()
-            tseries[(istep - 1 - istart) % self.nwrite] = self._timeseries()
-            if (istep - istart) % self.nwrite == 0:
+            tseries[irun % self.nwrite] = self._timeseries(istep)
+            if (irun + 1) % self.nwrite == 0:
                 self._save(istep)
-                dset.resize((len(dset) + self.nwrite, 8))
+                dset.resize((len(dset) + self.nwrite, _NTSERIES))
                 dset[-self.nwrite:] = tseries
         if progress:
             print()
