@@ -1,3 +1,4 @@
+from operator import setitem
 import pathlib
 from scipy.sparse.linalg import factorized
 import h5py
@@ -7,7 +8,52 @@ import numpy as np
 import toml
 
 
-class RayleighBenardStokes:
+CONF_DEFAULT = {
+    'numerical': {
+        'n_x': (32, 'Number of grid points in the horizontal direction.'),
+        'n_z': (32, 'Number of grid points in the vertical direction.'),
+        'nsteps': (100, 'Number of timesteps to perform.'),
+        'nwrite': (10, 'Save data every nwrite timesteps.'),
+        'restart': (False, 'Look for a file to restart from.'),
+    },
+    'physical': {
+        'ranum': (3e3, 'Rayleigh number.'),
+        'int_heat': (0, 'Internal heating.'),
+        'temp_init': (0.5, 'Average initial temperature.'),
+        'pert_init': (
+            'random',
+            "Initial temperature perturbation, either 'random' or 'sin'."),
+        'var_visc': (False, 'Whether viscosity is variable.'),
+        'var_visc_temp': (1e6, 'Viscosity contrast with temperature.'),
+        'var_visc_depth': (1e2, 'Viscosity contrast with depth.'),
+    },
+}
+
+
+# these two helpers are necessary to capture section and opt in the closure
+def _getter(section, opt):
+    return lambda self: self._conf[section][opt]
+
+
+def _setter(section, opt):
+    return lambda self, val: setitem(self._conf[section], opt, val)
+
+
+class _MetaRBS(type):
+
+    """Dynamically add configuration properties."""
+
+    def __new__(cls, name, bases, dct):
+        rbs = super().__new__(cls, name, bases, dct)
+        for section, opts in CONF_DEFAULT.items():
+            for opt, (_, doc) in opts.items():
+                setattr(rbs, opt, property(_getter(section, opt),
+                                           _setter(section, opt),
+                                           doc=doc))
+        return rbs
+
+
+class RayleighBenardStokes(metaclass=_MetaRBS):
 
     """Solver of Rayleigh Benard convection at infinite Prandtl number."""
 
@@ -18,10 +64,13 @@ class RayleighBenardStokes:
             outdir (path-like): path to the output directory.
             parfile (path-like): path to the parameters file.
         """
-        pars = toml.load(parfile) if parfile is not None else {}
         self.outdir = pathlib.Path(outdir)
-        self.set_numerical(**pars.get('numerical', {}))
-        self.set_physical(**pars.get('physical', {}))
+        self._conf = {section: {opt: val for opt, (val, _) in opts.items()}
+                      for section, opts in CONF_DEFAULT.items()}
+
+        if parfile is not None:
+            self.load_pars(parfile)
+
         self.time = 0
         self.temp = None
         self.v_x = None
@@ -29,6 +78,19 @@ class RayleighBenardStokes:
         self.dynp = None
         self.eta = None
         self._lumat = None
+
+    def load_pars(self, parfile):
+        """Read a TOML par file and update configuration accordingly."""
+        pars = toml.load(parfile)
+        for section, opts in pars.items():
+            if section not in CONF_DEFAULT:
+                print('Unknow section {}.'.format(section))
+                continue
+            for opt, val in opts.items():
+                if opt not in CONF_DEFAULT[section]:
+                    print('Unknown option {}.{}.'.format(section, opt))
+                    continue
+                setattr(self, opt, val)
 
     def _outfile(self, name, istep, ext=None):
         fname = '{}{:08d}'.format(name, istep)
@@ -368,48 +430,6 @@ class RayleighBenardStokes:
         self._lumat = None
         tfile.close()
 
-    def set_numerical(self, n_x=32, n_z=32, nsteps=100, nwrite=10,
-                      restart=False):
-        """Set numerical parameters.
-
-        Args:
-            n_x (int): number of point in the horizontal direction, default 32.
-            n_z (int): number of point in the vertical direction, default 32.
-            nsteps (int): number of timesteps to perform, default 100.
-            nwrite (int): save every nwrite timesteps, default 10.
-            restart (bool): look for a file to restart from, default False.
-        """
-        self.n_x = n_x
-        self.n_z = n_z
-        self.nsteps = nsteps
-        self.nwrite = nwrite
-        self.restart = restart
-
-    def set_physical(self, ranum=3e3, int_heat=0,
-                     temp_init=0.5, pert_init='random',
-                     var_visc=False, var_visc_temp=1e6, var_visc_depth=1e2):
-        """Set physical parameters.
-
-        Args:
-            ranum (float): Rayleigh number, default 3000.
-            int_heat (float): internal heating, default 0.
-            temp_init (float): average initial temperature, default 0.5.
-            pert_init (str): initial temperature perturbation, either
-                'random' or 'sin', default 'random'.
-            var_visc (bool): whether viscosity is variable, default False.
-            var_visc_temp (float): viscosity contrast with temperature, default
-                1e6.  Ignored if var_visc is False.
-            var_visc_depth (float): viscosity contrast with depth, default 1e2.
-                Ignored if var_visc is False.
-        """
-        self.ranum = ranum
-        self.int_heat = int_heat
-        self.temp_init = temp_init
-        self.pert_init = pert_init
-        self.var_visc = var_visc
-        self.var_visc_temp = var_visc_temp
-        self.var_visc_depth = var_visc_depth
-
     def dump_pars(self, parfile):
         """Dump configuration.
 
@@ -417,14 +437,5 @@ class RayleighBenardStokes:
             parfile (pathlib.Path): path of the par file where the
                 configuration should be dumped.
         """
-        pars = {
-            'numerical': {
-                par: getattr(self, par) for par in (
-                    'n_x', 'n_z', 'nsteps', 'nwrite', 'restart')},
-            'physical': {
-                par: getattr(self, par) for par in (
-                    'ranum', 'int_heat', 'temp_init', 'pert_init',
-                    'var_visc', 'var_visc_temp', 'var_visc_depth')},
-        }
         with parfile.open('w') as pf:
-            toml.dump(pars, pf)
+            toml.dump(self._conf, pf)
