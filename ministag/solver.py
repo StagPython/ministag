@@ -1,4 +1,3 @@
-from operator import setitem
 import pathlib
 from scipy.sparse.linalg import factorized
 import h5py
@@ -31,6 +30,7 @@ CONF_DEFAULT = {
 
 
 _NTSERIES = 9
+_CHANGEMAT = set(('n_x', 'n_y', 'var_visc', 'var_visc_temp', 'var_visc_depth'))
 
 
 # these two helpers are necessary to capture section and opt in the closure
@@ -39,7 +39,11 @@ def _getter(section, opt):
 
 
 def _setter(section, opt):
-    return lambda self, val: setitem(self._conf[section], opt, val)
+    def func(self, val):
+        if opt in _CHANGEMAT:
+            self._lumat = None
+        self._conf[section][opt] = val
+    return func
 
 
 class _MetaRBS(type):
@@ -430,7 +434,6 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
                 dset[-self.nwrite:] = tseries
         if progress:
             print()
-        self._lumat = None
         tfile.close()
 
     def dump_pars(self, parfile):
