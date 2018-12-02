@@ -148,7 +148,7 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
         fig.savefig(self._outfile('T_v', istep, 'pdf'), bbox_inches='tight')
         plt.close(fig)
 
-    def _stokes(self):
+    def _calc_eta(self):
         if self.var_visc:
             d_z = 1 / self.n_z
             a_visc = np.log(self.var_visc_temp)
@@ -157,6 +157,33 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
             self.eta = np.exp(-a_visc * (self.temp - 0.5) + b_visc * depth)
         else:
             self.eta = np.ones((self.n_x, self.n_z))
+
+    def _eta_around(self, ix, iz):
+        etaii_c = self.eta[ix, iz]
+        etaii_xm = self.eta[ix - 1, iz] if ix > 0 else 0
+        etaii_zm = self.eta[ix, iz - 1] if iz > 0 else 0
+        if ix > 0 and iz > 0:
+            etaxz_c = (self.eta[ix, iz] * self.eta[ix - 1, iz] *
+                       self.eta[ix, iz - 1] *
+                       self.eta[ix - 1, iz - 1])**0.25
+        else:
+            etaxz_c = 0
+        if ix > 0 and iz < self.n_z - 1:
+            etaxz_zp = (self.eta[ix, iz + 1] *
+                        self.eta[ix - 1, iz + 1] * self.eta[ix, iz] *
+                        self.eta[ix - 1, iz])**0.25
+        else:
+            etaxz_zp = 0
+        if ix < self.n_x - 1 and iz > 0:
+            etaxz_xp = (self.eta[ix + 1, iz] * self.eta[ix, iz] *
+                        self.eta[ix + 1, iz - 1] *
+                        self.eta[ix, iz - 1])**0.25
+        else:
+            etaxz_xp = 0
+        return etaii_c, etaii_xm, etaii_zm, etaxz_c, etaxz_xp, etaxz_zp
+
+    def _stokes(self):
+        self._calc_eta()
         rhsz = np.zeros((self.n_x, self.n_z))
         rhsz[:, 1:] = -self.ranum * (self.temp[:, :-1] + self.temp[:, 1:]) / 2
 
@@ -187,29 +214,8 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
                 ieqz = ieqx + 1
                 ieqc = ieqx + 2
 
-                etaii_c = self.eta[ix, iz]
-                if ix > 0:
-                    etaii_xm = self.eta[ix - 1, iz]
-                if iz > 0:
-                    etaii_zm = self.eta[ix, iz - 1]
-                if ix > 0 and iz > 0:
-                    etaxz_c = (self.eta[ix, iz] * self.eta[ix - 1, iz] *
-                               self.eta[ix, iz - 1] *
-                               self.eta[ix - 1, iz - 1])**0.25
-                else:
-                    etaxz_c = 0
-                if ix > 0 and iz < self.n_z - 1:
-                    etaxz_zp = (self.eta[ix, iz + 1] *
-                                self.eta[ix - 1, iz + 1] * self.eta[ix, iz] *
-                                self.eta[ix - 1, iz])**0.25
-                else:
-                    etaxz_zp = 0
-                if ix < self.n_x - 1 and iz > 0:
-                    etaxz_xp = (self.eta[ix + 1, iz] * self.eta[ix, iz] *
-                                self.eta[ix + 1, iz - 1] *
-                                self.eta[ix, iz - 1])**0.25
-                else:
-                    etaxz_xp = 0
+                etaii_c, etaii_xm, etaii_zm, etaxz_c, etaxz_xp, etaxz_zp =\
+                    self._eta_around(ix, iz)
 
                 xmom_zero_eta = (etaii_c == 0 and etaii_xm == 0 and
                                  etaxz_c == 0 and etaxz_zp == 0)
