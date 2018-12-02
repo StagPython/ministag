@@ -1,6 +1,5 @@
 from operator import setitem
 import pathlib
-import sys
 from scipy.sparse.linalg import factorized
 import h5py
 import scipy.sparse as sp
