@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import os
 import subprocess
+import toml
 
 
 @contextmanager
@@ -13,7 +14,9 @@ def safecd(newdir):
         os.chdir(olddir)
 
 
-def test_bare_command(tmp):
+def test_bare_command(tmp, minconf):
+    with (tmp / 'par.toml').open('w') as parfile:
+        toml.dump(minconf, parfile)
     with safecd(tmp):
         subprocess.run('ministag', shell=True)
         odir = tmp / 'output'
