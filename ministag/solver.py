@@ -111,7 +111,7 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
                                 np.sin(np.pi * zgrid))
         else:
             self.temp = self.temp_init + \
-                0.01 * np.random.rand(self.n_x, self.n_z)
+                0.01 * np.random.uniform(-1, 1, (self.n_x, self.n_z))
 
     def _save(self, istep):
         fname = self._outfile('fields', istep, 'npz')
