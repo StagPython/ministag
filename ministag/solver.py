@@ -142,9 +142,9 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
         u_z *= 0.5
         speed = np.sqrt(u_x ** 2 + u_z ** 2)
         # plot the streamlines
-        lw = 2*speed / speed.max()
+        lw = 2 * speed / speed.max()
         axis.streamplot(xgrid, zgrid, u_x.T, u_z.T, color='k',
-                            linewidth=lw.T)
+                        linewidth=lw.T)
         fig.savefig(self._outfile('T_v', istep, 'pdf'), bbox_inches='tight')
         plt.close(fig)
 
@@ -187,11 +187,11 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
                 ieqz = ieqx + 1
                 ieqc = ieqx + 2
 
-                etaii_c  = self.eta[ix, iz]
+                etaii_c = self.eta[ix, iz]
                 if ix > 0:
-                    etaii_xm = self.eta[ix-1, iz]
+                    etaii_xm = self.eta[ix - 1, iz]
                 if iz > 0:
-                    etaii_zm = self.eta[ix, iz-1]
+                    etaii_zm = self.eta[ix, iz - 1]
                 if ix > 0 and iz > 0:
                     etaxz_c = (self.eta[ix, iz] * self.eta[ix - 1, iz] *
                                self.eta[ix, iz - 1] *
@@ -204,7 +204,7 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
                                 self.eta[ix - 1, iz])**0.25
                 else:
                     etaxz_zp = 0
-                if ix < self.n_x-1 and iz > 0:
+                if ix < self.n_x - 1 and iz > 0:
                     etaxz_xp = (self.eta[ix + 1, iz] * self.eta[ix, iz] *
                                 self.eta[ix + 1, iz - 1] *
                                 self.eta[ix, iz - 1])**0.25
@@ -214,7 +214,7 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
                 xmom_zero_eta = (etaii_c == 0 and etaii_xm == 0 and
                                  etaxz_c == 0 and etaxz_zp == 0)
                 zmom_zero_eta = (etaii_c == 0 and etaii_zm == 0 and
-                                 etazx_c == 0 and etazx_xp == 0)
+                                 etaxz_c == 0 and etaxz_xp == 0)
 
                 # x-momentum
                 if ix > 0 and not xmom_zero_eta:
@@ -263,7 +263,7 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
                     rhs[ieqz] = 0
 
                 # continuity
-                if (ix==0 and iz==0) or (xmom_zero_eta and zmom_zero_eta):
+                if (ix == 0 and iz == 0) or (xmom_zero_eta and zmom_zero_eta):
                     mcoef(ieqc, ieqc, 1)
                 else:
                     mcoef(ieqc, ieqx, -odz)
@@ -285,7 +285,6 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
 
     def _heat(self):
         """Advection diffusion equation for time stepping"""
-        
         # compute stabe timestep
         # assumes n_x=n_z. To be generalized
         dt_diff = 0.1 / self.n_z**2
@@ -306,26 +305,27 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
         T = 1 at the bottom
         """
         delsqT = np.zeros(self.temp.shape)
-        dsq =  self.n_z**2 # inverse of dz ^ 2
-            # should be generalized for non-square grids
+        dsq = self.n_z**2  # inverse of dz ^ 2
+        # should be generalized for non-square grids
 
         for i in range(self.n_x):
-            im = max(i-1, 0)
-            ip = min(i+1, self.n_x - 1)
+            im = max(i - 1, 0)
+            ip = min(i + 1, self.n_x - 1)
 
             for j in range(0, self.n_z):
                 T_xm = self.temp[im, j]
                 T_xp = self.temp[ip, j]
-                if j==0: # enforce bottom BC
+                if j == 0:  # enforce bottom BC
                     T_zm = 2 - self.temp[i, j]
                 else:
                     T_zm = self.temp[i, j - 1]
-                if j==self.n_z - 1:
+                if j == self.n_z - 1:
                     T_zp = - self.temp[i, j]
                 else:
                     T_zp = self.temp[i, j + 1]
 
-                delsqT[i, j] = (T_xm + T_xp + T_zm + T_zp - 4 * self.temp[i,j]) * dsq
+                delsqT[i, j] = (T_xm + T_xp + T_zm + T_zp -
+                                4 * self.temp[i, j]) * dsq
 
         return delsqT
 
@@ -339,30 +339,32 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
         for i in range(self.n_x):
             for j in range(self.n_z):
                 if i > 0:
-                    flux_xm = temp[i - 1, j] * v_x[i, j] if v_x[i, j] > 0 else\
-                      temp[i, j] * v_x[i, j]
+                    flux_xm = temp[i - 1, j] * v_x[i, j] \
+                        if v_x[i, j] > 0 else temp[i, j] * v_x[i, j]
                 else:
                     flux_xm = 0
 
                 if i < self.n_x - 1:
-                    flux_xp = temp[i, j] * v_x[i+1, j] if v_x[i+1, j] > 0 else\
-                      temp[i+1, j] * v_x[i+1, j]
+                    flux_xp = temp[i, j] * v_x[i + 1, j] \
+                        if v_x[i + 1, j] > 0 else \
+                        temp[i + 1, j] * v_x[i + 1, j]
                 else:
                     flux_xp = 0
 
                 if j > 0:
-                    flux_zm = temp[i, j - 1] * v_z[i, j] if v_z [i, j] > 0 else\
-                      temp[i, j] * v_z[i, j]
+                    flux_zm = temp[i, j - 1] * v_z[i, j] \
+                        if v_z[i, j] > 0 else temp[i, j] * v_z[i, j]
                 else:
                     flux_zm = 0
 
                 if j < self.n_z - 1:
-                    flux_zp = temp[i, j] * v_z[i, j+1] if v_z [i, j+1] >= 0 else\
-                      temp[i, j+1] * v_z[i, j+1]
+                    flux_zp = temp[i, j] * v_z[i, j + 1] \
+                        if v_z[i, j + 1] >= 0 else \
+                        temp[i, j + 1] * v_z[i, j + 1]
                 else:
                     flux_zp = 0
-                dtemp = (flux_xm-flux_xp+flux_zm-flux_zp) * self.n_z
-                    # assumes d_x = d_z. To be generalized
+                dtemp = (flux_xm - flux_xp + flux_zm - flux_zp) * self.n_z
+                # assumes d_x = d_z. To be generalized
                 temp_new[i, j] = temp[i, j] + dtemp * dt
 
         return temp_new
@@ -373,7 +375,7 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
         tseries[0] = istep
         tseries[1] = self.time
         tseries[2] = np.amin(self.temp)
-        tseries[3] =  np.mean(self.temp)
+        tseries[3] = np.mean(self.temp)
         tseries[4] = np.amax(self.temp)
         ekin = np.mean(self.v_x ** 2 + self.v_z ** 2)
         tseries[5] = np.sqrt(ekin)
@@ -419,7 +421,8 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
             tfile = h5py.File(tfilename, 'a')
             dset = tfile['series']
 
-        step_msg = '\rstep: {{:{}d}}/{}'.format(len(str(self.nsteps)), self.nsteps)
+        step_msg = '\rstep: {{:{}d}}/{}'.format(len(str(self.nsteps)),
+                                                self.nsteps)
         tseries = np.zeros((self.nwrite, _NTSERIES))
 
         for irun, istep in enumerate(range(istart + 1, self.nsteps + 1)):
