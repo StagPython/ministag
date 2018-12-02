@@ -389,12 +389,6 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
                 if ifile > istart:
                     istart = ifile
                     fstart = fname
-        elif self.outdir.is_dir():
-            print('Output directory already exists.',
-                  'Resuming may lead to loss of data.')
-            answer = input('Keep on going anyway (y/N)? ')
-            if answer.lower() != 'y':
-                sys.exit()
         self.outdir.mkdir(exist_ok=True)
         if fstart is not None:
             with np.load(fstart) as fld:
