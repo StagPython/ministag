@@ -115,31 +115,48 @@ class RayleighBenardStokes:
 
         for iz in range(self.n_z):
             for ix in range(self.n_x):
+                # define indices in the matrix
                 icell = ix + iz * self.n_x
                 ieqx = icell * 3
                 ieqz = ieqx + 1
                 ieqc = ieqx + 2
 
+                # deal with boundary conditions on vertical planes
+                if self.periodic:
+                    ixm = (ix - 1 + self.n_x) % self.n_x
+                    ixp = (ix + 1) % self.n_x
+                    ieqxp = (ieqx + idx) % rhs.size
+                    ieqzp = ieqxp + 1
+                    ieqcp = ieqxp + 2
+                    ieqxpm = (ieqxp - idz + rhs.size) % rhs.size
+                    ieqxm = (ieqx - idx + rhs.size) % rhs.size
+                    ieqzm = ieqxm + 1
+                    ieqcm = ieqxm + 2
+                else:
+                    ixm = max(ix - 1, 0)
+                    ixp = min(ix + 1, self.n_x - 1)
+
+
                 etaii_c  = self.eta[ix, iz]
-                if ix > 0:
-                    etaii_xm = self.eta[ix-1, iz]
+                if ix > 0 or self.periodic:
+                    etaii_xm = self.eta[ixm, iz]
                 if iz > 0:
                     etaii_zm = self.eta[ix, iz-1]
-                if ix > 0 and iz > 0:
-                    etaxz_c = (self.eta[ix, iz] * self.eta[ix - 1, iz] *
+                if (ix > 0 or self.periodic) and iz > 0:
+                    etaxz_c = (self.eta[ix, iz] * self.eta[ixm, iz] *
                                self.eta[ix, iz - 1] *
-                               self.eta[ix - 1, iz - 1])**0.25
+                               self.eta[ixm, iz - 1])**0.25
                 else:
                     etaxz_c = 0
-                if ix > 0 and iz < self.n_z - 1:
+                if (ix > 0 or self.periodic) and iz < self.n_z - 1:
                     etaxz_zp = (self.eta[ix, iz + 1] *
-                                self.eta[ix - 1, iz + 1] * self.eta[ix, iz] *
-                                self.eta[ix - 1, iz])**0.25
+                                self.eta[ixm, iz + 1] * self.eta[ix, iz] *
+                                self.eta[ixm, iz])**0.25
                 else:
                     etaxz_zp = 0
-                if ix < self.n_x-1 and iz > 0:
-                    etaxz_xp = (self.eta[ix + 1, iz] * self.eta[ix, iz] *
-                                self.eta[ix + 1, iz - 1] *
+                if (ix < self.n_x-1 or self.periodic) and iz > 0:
+                    etaxz_xp = (self.eta[ixp, iz] * self.eta[ix, iz] *
+                                self.eta[ixp, iz - 1] *
                                 self.eta[ix, iz - 1])**0.25
                 else:
                     etaxz_xp = 0
@@ -150,17 +167,18 @@ class RayleighBenardStokes:
                                  etazx_c == 0 and etazx_xp == 0)
 
                 # x-momentum
-                if ix > 0 and not xmom_zero_eta:
+                if (ix > 0 or self.periodic) and not xmom_zero_eta:
+                   # if ix > 0 and not xmom_zero_eta:
                     mcoef(ieqx, ieqx, -odz2 * (2 * etaii_c + 2 * etaii_xm +
                                                etaxz_c + etaxz_zp))
-                    mcoef(ieqx, ieqx - idx, 2 * odz2 * etaii_xm)
+                    mcoef(ieqx, ieqxm, 2 * odz2 * etaii_xm)
                     mcoef(ieqx, ieqz, -odz2 * etaxz_c)
-                    mcoef(ieqx, ieqz - idx, odz2 * etaxz_c)
+                    mcoef(ieqx, ieqzm, odz2 * etaxz_c)
                     mcoef(ieqx, ieqc, -odz)
-                    mcoef(ieqx, ieqc - idx, odz)
+                    mcoef(ieqx, ieqcm, odz)
 
-                    if ix + 1 < self.n_x:
-                        mcoef(ieqx, ieqx + idx, 2 * odz2 * etaii_c)
+                    if ix + 1 < self.n_x or self.periodic:
+                        mcoef(ieqx, ieqxp, 2 * odz2 * etaii_c)
                     if iz + 1 < self.n_z:
                         mcoef(ieqx, ieqx + idz, odz2 * etaxz_zp)
                         mcoef(ieqx, ieqz + idz, odz2 * etaxz_zp)
@@ -184,12 +202,14 @@ class RayleighBenardStokes:
 
                     if iz + 1 < self.n_z:
                         mcoef(ieqz, ieqz + idz, 2 * odz2 * etaii_c)
-                    if ix + 1 < self.n_x:
-                        mcoef(ieqz, ieqz + idx, odz2 * etaxz_xp)
-                        mcoef(ieqz, ieqx + idx, odz2 * etaxz_xp)
-                        mcoef(ieqz, ieqx + idx - idz, -odz2 * etaxz_xp)
-                    if ix > 0:
-                        mcoef(ieqz, ieqz - idx, odz2 * etaxz_c)
+                    if ix + 1 < self.n_x or self.periodic:
+                    # if ix + 1 < self.n_x:
+                        mcoef(ieqz, ieqzp, odz2 * etaxz_xp)
+                        mcoef(ieqz, ieqxp, odz2 * etaxz_xp)
+                        mcoef(ieqz, ieqxpm, -odz2 * etaxz_xp)
+                    if ix > 0 or self.periodic:
+                    # if ix > 0:
+                        mcoef(ieqz, ieqzm, odz2 * etaxz_c)
                     rhs[ieqz] = rhsz[ix, iz]
                 else:
                     mcoef(ieqz, ieqz, 1)
@@ -201,8 +221,8 @@ class RayleighBenardStokes:
                 else:
                     mcoef(ieqc, ieqx, -odz)
                     mcoef(ieqc, ieqz, -odz)
-                    if ix + 1 < self.n_x:
-                        mcoef(ieqc, ieqx + idx, odz)
+                    if ix + 1 < self.n_x or self.periodic:
+                        mcoef(ieqc, ieqxp, odz)
                     if iz + 1 < self.n_z:
                         mcoef(ieqc, ieqz + idz, odz)
                 rhs[ieqc] = 0
@@ -234,7 +254,7 @@ class RayleighBenardStokes:
     def _del2temp(self):
         """Computes Laplacian of temperature
 
-        zero flux BC on the vertical sides
+        zero flux BC on the vertical sides for non-periodic cases
         T = 0 at the top
         T = 1 at the bottom
         """
@@ -243,8 +263,12 @@ class RayleighBenardStokes:
             # should be generalized for non-square grids
 
         for i in range(self.n_x):
-            im = max(i-1, 0)
-            ip = min(i+1, self.n_x - 1)
+            if self.periodic:
+                im = (i - 1 + self.n_x) % self.n_x
+                ip = (i + 1) % self.n_x
+            else:
+                im = max(i-1, 0)
+                ip = min(i+1, self.n_x - 1)
 
             for j in range(0, self.n_z):
                 T_xm = self.temp[im, j]
@@ -268,18 +292,27 @@ class RayleighBenardStokes:
         temp = self.temp
         v_x = self.v_x
         v_z = self.v_z
+        n_x = self.n_x
+        n_z = self.n_z
 
         for i in range(self.n_x):
+            if self.periodic:
+                im = (i - 1 + n_x) % n_x
+                ip = (i + 1) % n_x
+            else:
+                im = max(i-1, 0)
+                ip = min(i+1, self.n_x - 1)
+
             for j in range(self.n_z):
-                if i > 0:
-                    flux_xm = temp[i - 1, j] * v_x[i, j] if v_x[i, j] > 0 else\
+                if i > 0 or self.periodic:
+                    flux_xm = temp[im, j] * v_x[i, j] if v_x[i, j] > 0 else\
                       temp[i, j] * v_x[i, j]
                 else:
                     flux_xm = 0
 
-                if i < self.n_x - 1:
-                    flux_xp = temp[i, j] * v_x[i+1, j] if v_x[i+1, j] > 0 else\
-                      temp[i+1, j] * v_x[i+1, j]
+                if i < self.n_x - 1 or self.periodic:
+                    flux_xp = temp[i, j] * v_x[ip, j] if v_x[ip, j] > 0 else\
+                      temp[ip, j] * v_x[ip, j]
                 else:
                     flux_xp = 0
 
@@ -368,7 +401,8 @@ class RayleighBenardStokes:
 
     def set_physical(self, ranum=3e3, int_heat=0,
                      temp_init=0.5, pert_init='random',
-                     var_visc=False, var_visc_temp=1e6, var_visc_depth=1e2):
+                     var_visc=False, var_visc_temp=1e6,
+                     var_visc_depth=1e2, periodic=False):
         """Set physical parameters.
 
         Args:
@@ -382,6 +416,7 @@ class RayleighBenardStokes:
                 1e6.  Ignored if var_visc is False.
             var_visc_depth (float): viscosity contrast with depth, default 1e2.
                 Ignored if var_visc is False.
+            periodic (boolean): whether the domain is periodic in x.
         """
         self.ranum = ranum
         self.int_heat = int_heat
@@ -390,6 +425,7 @@ class RayleighBenardStokes:
         self.var_visc = var_visc
         self.var_visc_temp = var_visc_temp
         self.var_visc_depth = var_visc_depth
+        self.periodic = periodic
 
     def dump_pars(self, parfile):
         """Dump configuration.
@@ -405,7 +441,7 @@ class RayleighBenardStokes:
             'physical': {
                 par: getattr(self, par) for par in (
                     'ranum', 'int_heat', 'temp_init', 'pert_init',
-                    'var_visc', 'var_visc_temp', 'var_visc_depth')},
+                    'var_visc', 'var_visc_temp', 'var_visc_depth', 'periodic')},
         }
         with parfile.open('w') as pf:
             toml.dump(pars, pf)
