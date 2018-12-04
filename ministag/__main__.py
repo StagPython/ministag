@@ -24,8 +24,15 @@ def main():
 """)
     solver = importlib.import_module('ministag.solver')
     par = pathlib.Path('par.toml')
-    rb2d = solver.RayleighBenardStokes(par if par.is_file() else None)
-    rb2d.dump_pars(par)
+    rb2d = solver.RayleighBenardStokes(parfile=par if par.is_file() else None)
+    if not rb2d.restart and rb2d.outdir.is_dir():
+        print('Output directory already exists.',
+              'Resuming may lead to loss of data.')
+        answer = input('Keep on going anyway (y/N)? ')
+        if answer.lower() != 'y':
+            sys.exit()
+    rb2d.outdir.mkdir(exist_ok=True)
+    rb2d.dump_pars(rb2d.outdir / 'par.toml')
     rb2d.solve(progress=True)
 
 
