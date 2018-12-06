@@ -223,14 +223,16 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
                 ieqx = icell * 3
                 ieqz = ieqx + 1
                 ieqc = ieqx + 2
-                if self.periodic:
-                    ieqxp = (ieqx + idx) % rhs.size
-                    ieqzp = ieqxp + 1
-                    ieqcp = ieqxp + 2
-                    ieqxpm = (ieqxp - idz + rhs.size) % rhs.size
-                    ieqxm = (ieqx - idx + rhs.size) % rhs.size
-                    ieqzm = ieqxm + 1
-                    ieqcm = ieqxm + 2
+                ieqxp = (ieqx + idx) % rhs.size \
+                    if self.periodic else ieqx + idx
+                ieqzp = ieqxp + 1
+                ieqcp = ieqxp + 2
+                ieqxpm = (ieqxp - idz) % rhs.size \
+                    if self.periodic else ieqxp - idz
+                ieqxm = (ieqx - idx) % rhs.size \
+                    if self.periodic else ieqx - idx
+                ieqzm = ieqxm + 1
+                ieqcm = ieqxm + 2
 
                 etaii_c, etaii_xm, etaii_zm, etaxz_c, etaxz_xp, etaxz_zp =\
                     self._eta_around(ix, iz)
