@@ -31,7 +31,9 @@ CONF_DEFAULT = {
 
 
 _NTSERIES = 9
-_CHANGEMAT = set(('n_x', 'n_y', 'var_visc', 'var_visc_temp', 'var_visc_depth', 'periodic'))
+_CHANGEMAT = set(('n_x', 'n_y',
+                  'var_visc', 'var_visc_temp', 'var_visc_depth',
+                  'periodic'))
 
 
 # these two helpers are necessary to capture section and opt in the closure
@@ -227,7 +229,6 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
                 ieqxp = (ieqx + idx) % rhs.size \
                     if self.periodic else ieqx + idx
                 ieqzp = ieqxp + 1
-                ieqcp = ieqxp + 2
                 ieqxpm = (ieqxp - idz) % rhs.size \
                     if self.periodic else ieqxp - idz
                 ieqxm = (ieqx - idx) % rhs.size \
@@ -245,7 +246,6 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
 
                 # x-momentum
                 if (ix > 0 or self.periodic) and not xmom_zero_eta:
-                   # if ix > 0 and not xmom_zero_eta:
                     mcoef(ieqx, ieqx, -odz2 * (2 * etaii_c + 2 * etaii_xm +
                                                etaxz_c + etaxz_zp))
                     mcoef(ieqx, ieqxm, 2 * odz2 * etaii_xm)
@@ -280,12 +280,10 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
                     if iz + 1 < self.n_z:
                         mcoef(ieqz, ieqz + idz, 2 * odz2 * etaii_c)
                     if ix + 1 < self.n_x or self.periodic:
-                    # if ix + 1 < self.n_x:
                         mcoef(ieqz, ieqzp, odz2 * etaxz_xp)
                         mcoef(ieqz, ieqxp, odz2 * etaxz_xp)
                         mcoef(ieqz, ieqxpm, -odz2 * etaxz_xp)
                     if ix > 0 or self.periodic:
-                    # if ix > 0:
                         mcoef(ieqz, ieqzm, odz2 * etaxz_c)
                     rhs[ieqz] = rhsz[ix, iz]
                 else:
@@ -346,8 +344,8 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
                 im = (i - 1 + self.n_x) % self.n_x
                 ip = (i + 1) % self.n_x
             else:
-                im = max(i-1, 0)
-                ip = min(i+1, self.n_x - 1)
+                im = max(i - 1, 0)
+                ip = min(i + 1, self.n_x - 1)
 
             for j in range(0, self.n_z):
                 T_xm = self.temp[im, j]
@@ -372,27 +370,25 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
         temp = self.temp
         v_x = self.v_x
         v_z = self.v_z
-        n_x = self.n_x
-        n_z = self.n_z
 
         for i in range(self.n_x):
             if self.periodic:
-                im = (i - 1 + n_x) % n_x
-                ip = (i + 1) % n_x
+                im = (i - 1 + self.n_x) % self.n_x
+                ip = (i + 1) % self.n_x
             else:
-                im = max(i-1, 0)
-                ip = min(i+1, self.n_x - 1)
+                im = max(i - 1, 0)
+                ip = min(i + 1, self.n_x - 1)
 
             for j in range(self.n_z):
                 if i > 0 or self.periodic:
                     flux_xm = temp[im, j] * v_x[i, j] if v_x[i, j] > 0 else\
-                      temp[i, j] * v_x[i, j]
+                        temp[i, j] * v_x[i, j]
                 else:
                     flux_xm = 0
 
                 if i < self.n_x - 1 or self.periodic:
                     flux_xp = temp[i, j] * v_x[ip, j] if v_x[ip, j] > 0 else\
-                      temp[ip, j] * v_x[ip, j]
+                        temp[ip, j] * v_x[ip, j]
                 else:
                     flux_xp = 0
 
