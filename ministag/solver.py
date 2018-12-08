@@ -203,6 +203,7 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
         # indices offset
         idx = 3
         idz = self.n_x * 3
+        # a priori number of non-zero matrix coefficients
         n_non0 = (11 + 11 + 4) * self.n_x * self.n_z
         rows = np.zeros(n_non0)
         cols = np.zeros(n_non0)
@@ -308,6 +309,9 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
                                                    shape=(rhs.size, rhs.size)))
         sol = self._lumat(rhs)
         self.v_x = np.reshape(sol[::3], (self.n_z, self.n_x)).T
+        # remove drift velocity (unconstrained)
+        if self.periodic:
+            self.v_x -= np.mean(self.v_x)
         self.v_z = np.reshape(sol[1::3], (self.n_z, self.n_x)).T
         self.dynp = np.reshape(sol[2::3], (self.n_z, self.n_x)).T
         self.dynp -= np.mean(self.dynp)
