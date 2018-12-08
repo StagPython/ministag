@@ -335,7 +335,7 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
         T = 0 at the top
         T = 1 at the bottom
         """
-        delsqT = np.zeros(self.temp.shape)
+        delsqT = np.zeros_like(self.temp)
         dsq = self.n_z**2  # inverse of dz ^ 2
         # should be generalized for non-square grids
 
