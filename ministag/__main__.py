@@ -2,6 +2,7 @@
 
 import importlib
 import pathlib
+import shutil
 import signal
 import sys
 
@@ -31,6 +32,7 @@ def main():
         answer = input('Keep on going anyway (y/N)? ')
         if answer.lower() != 'y':
             sys.exit()
+        shutil.rmtree(rb2d.outdir)
     rb2d.outdir.mkdir(exist_ok=True)
     rb2d.dump_pars(rb2d.outdir / 'par.toml')
     rb2d.solve(progress=True)
