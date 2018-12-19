@@ -326,7 +326,7 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
         # diffusion and internal heating
         self.temp += dt * (self._del2temp() + self.int_heat)
         # advection
-        self.temp += dt * self._donor_cell_advection(dt)
+        self.temp += dt * self._donor_cell_advection()
 
     def _del2temp(self):
         """Computes Laplacian of temperature
@@ -367,6 +367,7 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
     def _donor_cell_advection(self):
         """Donor cell advection div(v T)"""
         dtemp = np.zeros_like(self.temp)
+        temp = self.temp
         v_x = self.v_x
         v_z = self.v_z
 
@@ -403,7 +404,8 @@ class RayleighBenardStokes(metaclass=_MetaRBS):
                         temp[i, j + 1] * v_z[i, j + 1]
                 else:
                     flux_zp = 0
-                dtemp[i. j] = (flux_xm - flux_xp + flux_zm - flux_zp) * self.n_z
+                dtemp[i, j] = (flux_xm - flux_xp +
+                               flux_zm - flux_zp) * self.n_z
                 # assumes d_x = d_z. To be generalized
         return dtemp
 
