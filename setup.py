@@ -4,11 +4,11 @@ with open('README.rst') as rdm:
     README = rdm.read()
 
 DEPENDENCIES = [
-    'h5py>=2.8',
-    'numpy>=1.15',
-    'scipy>=1.0',
-    'matplotlib>=3.0',
-    'toml>=0.10',
+    'h5py>=3.0',
+    'numpy>=1.19',
+    'scipy>=1.5',
+    'matplotlib>=3.3',
+    'toml>=0.10.2',
 ]
 
 setup(
@@ -20,7 +20,7 @@ setup(
 
     author='Stéphane Labrosse, Adrien Morison',
 
-    python_requires='>=3.5',
+    python_requires='>=3.7',
     packages=['ministag'],
     entry_points={
         'console_scripts': ['ministag = ministag.__main__:main']
