@@ -11,8 +11,9 @@ import numpy as np
 from .config import Config
 
 if typing.TYPE_CHECKING:
-    from typing import Union
+    from typing import Union, Optional, Callable
     from os import PathLike
+    from numpy import ndarray
 
 
 _NTSERIES = 9
@@ -34,12 +35,12 @@ class RayleighBenardStokes:
         self._conf = Config() if parfile is None else Config.from_file(parfile)
 
         self.time = 0
-        self.temp = None
-        self.v_x = None
-        self.v_z = None
-        self.dynp = None
-        self.eta = None
-        self._lumat = None
+        self.temp = np.array([])
+        self.v_x = np.array([])
+        self.v_z = np.array([])
+        self.dynp = np.array([])
+        self.eta = np.array([])
+        self._lumat: Optional[Callable[[ndarray], ndarray]] = None
 
     @property
     def conf(self) -> Config:
@@ -256,8 +257,10 @@ class RayleighBenardStokes:
                 rhs[ieqc] = 0
 
         if self.conf.physical.var_visc or self._lumat is None:
-            self._lumat = factorized(sp.csc_matrix((coefs, (rows, cols)),
-                                                   shape=(rhs.size, rhs.size)))
+            lumat: Callable[[ndarray], ndarray] = factorized(
+                sp.csc_matrix((coefs, (rows, cols)),
+                              shape=(rhs.size, rhs.size)))
+            self._lumat = lumat
         sol = self._lumat(rhs)
         self.v_x = np.reshape(sol[::3], (n_z, n_x)).T
         # remove drift velocity (unconstrained)
