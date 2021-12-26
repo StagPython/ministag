@@ -3,7 +3,8 @@ requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.mypy]
-disallow_untyped_defs = true
+#disallow_untyped_defs = true
+check_untyped_defs = true
 
 [[tool.mypy.overrides]]
 module = [
