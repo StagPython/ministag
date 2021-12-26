@@ -1,19 +1,24 @@
 """Make ministag callable."""
 
+from __future__ import annotations
 import importlib
 import pathlib
 import shutil
 import signal
 import sys
+import typing
+
+if typing.TYPE_CHECKING:
+    from typing import Any, NoReturn
 
 
-def _sigint_handler(*_):
+def _sigint_handler(*_: Any) -> NoReturn:
     """Handler of SIGINT signal."""
     print('\nYour will to stop me is staggering.')
     sys.exit()
 
 
-def main():
+def main() -> None:
     """Entry point."""
     signal.signal(signal.SIGINT, _sigint_handler)
     print(r"""
