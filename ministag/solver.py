@@ -11,7 +11,7 @@ import numpy as np
 from .config import Config
 
 if typing.TYPE_CHECKING:
-    from typing import Union, Optional, Callable
+    from typing import Union, Optional, Callable, Tuple
     from os import PathLike
     from numpy import ndarray
 
@@ -46,13 +46,13 @@ class RayleighBenardStokes:
     def conf(self) -> Config:
         return self._conf
 
-    def _outfile(self, name, istep, ext=None):
+    def _outfile(self, name: str, istep: int, ext: str = None) -> Path:
         fname = '{}{:08d}'.format(name, istep)
         if ext is not None:
             fname += '.{}'.format(ext)
         return self.outdir / fname
 
-    def _init_temp(self):
+    def _init_temp(self) -> None:
         n_x = self.conf.numerical.n_x
         n_z = self.conf.numerical.n_z
         if self.conf.physical.pert_init == 'sin':
@@ -65,7 +65,7 @@ class RayleighBenardStokes:
             self.temp = self.conf.physical.temp_init + \
                 0.01 * np.random.uniform(-1, 1, (n_x, n_z))
 
-    def _save(self, istep):
+    def _save(self, istep: int) -> None:
         n_x = self.conf.numerical.n_x
         n_z = self.conf.numerical.n_z
         fname = self._outfile('fields', istep, 'npz')
@@ -99,7 +99,7 @@ class RayleighBenardStokes:
         fig.savefig(self._outfile('T_v', istep, 'pdf'), bbox_inches='tight')
         plt.close(fig)
 
-    def _calc_eta(self):
+    def _calc_eta(self) -> None:
         n_x = self.conf.numerical.n_x
         n_z = self.conf.numerical.n_z
         if self.conf.physical.var_visc:
@@ -111,7 +111,7 @@ class RayleighBenardStokes:
         else:
             self.eta = np.ones((n_x, n_z))
 
-    def _eta_around(self, ix, iz):
+    def _eta_around(self, ix: int, iz: int) -> Tuple[float, ...]:
         n_x = self.conf.numerical.n_x
         n_z = self.conf.numerical.n_z
         periodic = self.conf.physical.periodic
@@ -146,7 +146,7 @@ class RayleighBenardStokes:
             etaxz_xp = 0
         return etaii_c, etaii_xm, etaii_zm, etaxz_c, etaxz_xp, etaxz_zp
 
-    def _stokes(self):
+    def _stokes(self) -> None:
         n_x = self.conf.numerical.n_x
         n_z = self.conf.numerical.n_z
         periodic = self.conf.physical.periodic
@@ -169,7 +169,7 @@ class RayleighBenardStokes:
         coefs = np.zeros(n_non0)
         n_non0 = 0  # track number of non zeros coef
 
-        def mcoef(row, col, coef):
+        def mcoef(row: int, col: int, coef: float) -> None:
             nonlocal n_non0
             rows[n_non0] = row
             cols[n_non0] = col
@@ -270,7 +270,7 @@ class RayleighBenardStokes:
         self.dynp = np.reshape(sol[2::3], (n_z, n_x)).T
         self.dynp -= np.mean(self.dynp)
 
-    def _heat(self):
+    def _heat(self) -> None:
         """Advection diffusion equation for time stepping"""
         # compute stabe timestep
         # assumes n_x=n_z. To be generalized
@@ -284,7 +284,7 @@ class RayleighBenardStokes:
         # advection
         self.temp += dt * self._donor_cell_advection()
 
-    def _del2temp(self):
+    def _del2temp(self) -> ndarray:
         """Computes Laplacian of temperature
 
         zero flux BC on the vertical sides for non-periodic cases
@@ -322,7 +322,7 @@ class RayleighBenardStokes:
 
         return delsqT
 
-    def _donor_cell_advection(self):
+    def _donor_cell_advection(self) -> ndarray:
         """Donor cell advection div(v T)"""
         dtemp = np.zeros_like(self.temp)
         temp = self.temp
@@ -368,7 +368,7 @@ class RayleighBenardStokes:
                 # assumes d_x = d_z. To be generalized
         return dtemp
 
-    def _timeseries(self, istep):
+    def _timeseries(self, istep: int) -> ndarray:
         """Time series diagnostic for one step."""
         n_z = self.conf.numerical.n_z
         tseries = np.empty(_NTSERIES)
@@ -384,7 +384,7 @@ class RayleighBenardStokes:
         tseries[8] = 2 * n_z * np.mean(self.temp[:, n_z - 1])
         return tseries
 
-    def solve(self, progress=False):
+    def solve(self, progress: bool = False) -> None:
         """Resolution of asked problem.
 
         Args:
