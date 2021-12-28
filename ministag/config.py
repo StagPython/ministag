@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field, fields
 import typing
 
 import toml
@@ -52,9 +52,20 @@ class PhysicalConf:
 
 
 @dataclass(frozen=True)
+class InOutConf:
+    """Configuration of input and output.
+
+    Attributes:
+        outdir: output directory.
+    """
+    outdir: str = 'outdir'
+
+
+@dataclass(frozen=True)
 class Config:
-    numerical: NumericalConf = NumericalConf()
-    physical: PhysicalConf = PhysicalConf()
+    numerical: NumericalConf = field(default_factory=NumericalConf)
+    physical: PhysicalConf = field(default_factory=PhysicalConf)
+    inout: InOutConf = field(default_factory=InOutConf)
 
     @staticmethod
     def from_file(parfile: Path) -> Config:
@@ -65,10 +76,11 @@ class Config:
     @staticmethod
     def from_dict(options: Mapping[str, Mapping[str, Any]]) -> Config:
         """Create configuration from a dictionary."""
-        num_dict = options.get("numerical", {})
-        phy_dict = options.get("physical", {})
-        return Config(numerical=NumericalConf(**num_dict),
-                      physical=PhysicalConf(**phy_dict))
+        sections = {}
+        for fld in fields(Config):
+            section_dict = options.get(fld.name, {})
+            sections[fld.name] = fld.default_factory(**section_dict)
+        return Config(**sections)
 
     def to_file(self, parfile: Path) -> None:
         """Write configuration in toml file.
