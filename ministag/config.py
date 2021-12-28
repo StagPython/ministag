@@ -1,12 +1,12 @@
 from __future__ import annotations
 from dataclasses import dataclass, asdict, field, fields
+from pathlib import Path
 import typing
 
 import toml
 
 if typing.TYPE_CHECKING:
     from typing import Mapping, Any
-    from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -58,7 +58,18 @@ class InOutConf:
     Attributes:
         outdir: output directory.
     """
-    outdir: str = 'outdir'
+    outdir: Path = field(default=Path('outdir'), metadata=dict(from_str=Path))
+
+    def __post_init__(self) -> None:
+        for fld in fields(self):
+            if fld.metadata is None:
+                continue
+            func = fld.metadata.get('from_str')
+            if func is None:
+                continue
+            current_val = getattr(self, fld.name)
+            if isinstance(current_val, str):
+                object.__setattr__(self, fld.name, func(current_val))
 
 
 @dataclass(frozen=True)
