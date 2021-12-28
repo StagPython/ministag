@@ -8,6 +8,8 @@ import signal
 import sys
 import typing
 
+from .config import Config
+
 if typing.TYPE_CHECKING:
     from typing import Any, NoReturn
 
@@ -30,16 +32,17 @@ def main() -> None:
 """)
     solver = importlib.import_module('ministag.solver')
     par = pathlib.Path('par.toml')
-    rb2d = solver.RayleighBenardStokes(parfile=par if par.is_file() else None)
-    if not rb2d.conf.numerical.restart and rb2d.outdir.is_dir():
+    conf = Config.from_file(par) if par.is_file() else Config()
+    rb2d = solver.RayleighBenardStokes(conf)
+    if not rb2d.conf.numerical.restart and conf.inout.outdir.is_dir():
         print('Output directory already exists.',
               'Resuming may lead to loss of data.')
         answer = input('Keep on going anyway (y/N)? ')
         if answer.lower() != 'y':
             sys.exit()
-        shutil.rmtree(rb2d.outdir)
-    rb2d.outdir.mkdir(exist_ok=True)
-    rb2d.dump_pars(rb2d.outdir / 'par.toml')
+        shutil.rmtree(conf.inout.outdir)
+    conf.inout.outdir.mkdir(exist_ok=True)
+    rb2d.dump_pars(conf.inout.outdir / 'par.toml')
     rb2d.solve(progress=True)
 
 

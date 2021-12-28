@@ -8,12 +8,10 @@ import scipy.sparse as sp
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .config import Config
-
 if typing.TYPE_CHECKING:
-    from typing import Union, Optional, Callable, Tuple
-    from os import PathLike
+    from typing import Optional, Callable, Tuple
     from numpy import ndarray
+    from .config import Config
 
 
 _NTSERIES = 9
@@ -23,16 +21,8 @@ class RayleighBenardStokes:
 
     """Solver of Rayleigh Benard convection at infinite Prandtl number."""
 
-    def __init__(self, outdir: Union[str, PathLike] = 'output',
-                 parfile: Path = None):
-        """Initialization of instance:
-
-        Args:
-            outdir (path-like): path to the output directory.
-            parfile (path-like): path to the parameters file.
-        """
-        self.outdir = Path(outdir)
-        self._conf = Config() if parfile is None else Config.from_file(parfile)
+    def __init__(self, conf: Config):
+        self._conf = conf
 
         self.time = 0
         self.temp = np.array([])
@@ -44,13 +34,14 @@ class RayleighBenardStokes:
 
     @property
     def conf(self) -> Config:
+        """Configuration of solver."""
         return self._conf
 
     def _outfile(self, name: str, istep: int, ext: str = None) -> Path:
         fname = '{}{:08d}'.format(name, istep)
         if ext is not None:
             fname += '.{}'.format(ext)
-        return self.outdir / fname
+        return self.conf.inout.outdir / fname
 
     def _init_temp(self) -> None:
         n_x = self.conf.numerical.n_x
@@ -393,12 +384,12 @@ class RayleighBenardStokes:
         fstart = None
         istart = -1
         if self.conf.numerical.restart:
-            for fname in self.outdir.glob('fields*.npz'):
+            for fname in self.conf.inout.outdir.glob('fields*.npz'):
                 ifile = int(fname.name[6:-4])
                 if ifile > istart:
                     istart = ifile
                     fstart = fname
-        self.outdir.mkdir(exist_ok=True)
+        self.conf.inout.outdir.mkdir(exist_ok=True)
         if fstart is not None:
             with np.load(fstart) as fld:
                 self.temp = fld['T']
@@ -411,7 +402,7 @@ class RayleighBenardStokes:
         if fstart is None:
             self._save(0)
 
-        tfilename = self.outdir / 'time.h5'
+        tfilename = self.conf.inout.outdir / 'time.h5'
         if fstart is None or not tfilename.exists():
             tfile = h5py.File(tfilename, 'w')
             dset = tfile.create_dataset('series', (1, _NTSERIES),
