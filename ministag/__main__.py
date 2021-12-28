@@ -1,7 +1,6 @@
 """Make ministag callable."""
 
 from __future__ import annotations
-import importlib
 import pathlib
 import shutil
 import signal
@@ -30,7 +29,7 @@ def main() -> None:
  _//---\|_
 /         /
 """)
-    solver = importlib.import_module('ministag.solver')
+    from . import solver
     par = pathlib.Path('par.toml')
     conf = Config.from_file(par) if par.is_file() else Config()
     rb2d = solver.RayleighBenardStokes(conf)
