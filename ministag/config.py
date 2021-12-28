@@ -58,7 +58,8 @@ class InOutConf:
     Attributes:
         outdir: output directory.
     """
-    outdir: Path = field(default=Path('outdir'), metadata=dict(from_str=Path))
+    outdir: Path = field(default=Path('output'),
+                         metadata=dict(from_str=Path, to_str=str))
 
     def __post_init__(self) -> None:
         for fld in fields(self):
@@ -99,5 +100,14 @@ class Config:
         Args:
             parfile: path of the toml file.
         """
+        dct = asdict(self)
+        for sec_name, sec_dict in dct.items():
+            for fld in fields(getattr(self, sec_name)):
+                if fld.metadata is None:
+                    continue
+                func = fld.metadata.get("to_str")
+                if func is None:
+                    continue
+                sec_dict[fld.name] = func(sec_dict[fld.name])
         with parfile.open('w') as pf:
-            toml.dump(asdict(self), pf)
+            toml.dump(dct, pf)
