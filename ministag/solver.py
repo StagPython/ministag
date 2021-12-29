@@ -17,95 +17,67 @@ if typing.TYPE_CHECKING:
 _NTSERIES = 9
 
 
-class RayleighBenardStokes:
+class StokesState:
 
-    """Solver of Rayleigh Benard convection at infinite Prandtl number."""
+    """Represent a consistent physical state.
 
-    def __init__(self, conf: Config):
+    Velocity, pressure, and viscosity fields are all consistent with a given
+    temperature field.
+    """
+
+    def __init__(self, temp: ndarray, conf: Config):
         self._conf = conf
-
-        self.time = 0
-        self.temp = np.array([])
-        self.v_x = np.array([])
-        self.v_z = np.array([])
-        self.dynp = np.array([])
-        self.eta = np.array([])
         self._lumat: Optional[Callable[[ndarray], ndarray]] = None
+        self.temp = temp
 
     @property
-    def conf(self) -> Config:
-        """Configuration of solver."""
-        return self._conf
+    def temp(self) -> ndarray:
+        return self._temp
 
-    def _outfile(self, name: str, istep: int, ext: str = None) -> Path:
-        fname = '{}{:08d}'.format(name, istep)
-        if ext is not None:
-            fname += '.{}'.format(ext)
-        return self.conf.inout.outdir / fname
+    @temp.setter
+    def temp(self, field: ndarray) -> None:
+        self._temp = field
+        # keep the state self-consistent
+        self._solve_stokes()
 
-    def _init_temp(self) -> None:
-        n_x = self.conf.numerical.n_x
-        n_z = self.conf.numerical.n_z
-        if self.conf.physical.pert_init == 'sin':
-            xgrid = np.linspace(0, n_x / n_z, n_x)
-            zgrid = np.linspace(0, 1, n_z)
-            self.temp = self.conf.physical.temp_init + \
-                0.01 * np.outer(np.sin(np.pi * xgrid),
-                                np.sin(np.pi * zgrid))
-        else:
-            self.temp = self.conf.physical.temp_init + \
-                0.01 * np.random.uniform(-1, 1, (n_x, n_z))
+    @property
+    def viscosity(self) -> ndarray:
+        """Viscosity field."""
+        return self._visco
 
-    def _save(self, istep: int) -> None:
-        n_x = self.conf.numerical.n_x
-        n_z = self.conf.numerical.n_z
-        fname = self._outfile('fields', istep, 'npz')
-        np.savez(fname, T=self.temp, vx=self.v_x, vz=self.v_z, p=self.dynp,
-                 time=self.time)
+    @property
+    def v_x(self) -> ndarray:
+        """Horizontal velocity."""
+        return self._v_x
 
-        xgrid = np.linspace(0, n_x / n_z, n_x)
-        zgrid = np.linspace(0, 1, n_z)
-        fig, axis = plt.subplots()
-        # first plot the temperature field
-        surf = axis.pcolormesh(xgrid, zgrid, self.temp.T, cmap='RdBu_r',
-                               shading='gouraud')
-        cbar = plt.colorbar(surf, shrink=0.5)
-        cbar.set_label('Temperature')
-        plt.axis('equal')
-        plt.axis('off')
-        axis.set_adjustable('box')
-        axis.set_xlim(0, n_x / n_z)
-        axis.set_ylim(0, 1)
-        # interpolate velocities at the same points for streamlines
-        u_x = 0.5 * (self.v_x + np.roll(self.v_x, 1, 0))
-        u_z = np.zeros_like(self.v_z)
-        u_z[1:] = self.v_z[:-1]
-        u_z += self.v_z
-        u_z *= 0.5
-        speed = np.sqrt(u_x ** 2 + u_z ** 2)
-        # plot the streamlines
-        lw = 2 * speed / speed.max()
-        axis.streamplot(xgrid, zgrid, u_x.T, u_z.T, color='k',
-                        linewidth=lw.T)
-        fig.savefig(self._outfile('T_v', istep, 'pdf'), bbox_inches='tight')
-        plt.close(fig)
+    @property
+    def v_z(self) -> ndarray:
+        """Vertical velocity."""
+        return self._v_z
 
-    def _calc_eta(self) -> None:
-        n_x = self.conf.numerical.n_x
-        n_z = self.conf.numerical.n_z
-        if self.conf.physical.var_visc:
+    @property
+    def dynp(self) -> ndarray:
+        """Dynamic pressure."""
+        return self._dynp
+
+    def _eval_viscosity(self) -> None:
+        """Compute viscosity for a given temperature field."""
+        n_x = self._conf.numerical.n_x
+        n_z = self._conf.numerical.n_z
+        if self._conf.physical.var_visc:
             d_z = 1 / n_z
-            a_visc = np.log(self.conf.physical.var_visc_temp)
-            b_visc = np.log(self.conf.physical.var_visc_depth)
+            a_visc = np.log(self._conf.physical.var_visc_temp)
+            b_visc = np.log(self._conf.physical.var_visc_depth)
             depth = 0.5 - np.linspace(0.5 * d_z, 1 - 0.5 * d_z, n_z)
-            self.eta = np.exp(-a_visc * (self.temp - 0.5) + b_visc * depth)
+            self._visco = np.exp(-a_visc * (self.temp - 0.5) + b_visc * depth)
         else:
-            self.eta = np.ones((n_x, n_z))
+            self._visco = np.ones((n_x, n_z))
 
-    def _eta_around(self, ix: int, iz: int) -> Tuple[float, ...]:
-        n_x = self.conf.numerical.n_x
-        n_z = self.conf.numerical.n_z
-        periodic = self.conf.physical.periodic
+    def _visco_around(self, ix: int, iz: int) -> Tuple[float, ...]:
+        """Viscosity around a grid point."""
+        n_x = self._conf.numerical.n_x
+        n_z = self._conf.numerical.n_z
+        periodic = self._conf.physical.periodic
         # deal with boundary conditions on vertical planes
         if periodic:
             ixm = (ix - 1 + n_x) % n_x
@@ -114,36 +86,37 @@ class RayleighBenardStokes:
             ixm = max(ix - 1, 0)
             ixp = min(ix + 1, n_x - 1)
 
-        etaii_c = self.eta[ix, iz]
-        etaii_xm = self.eta[ixm, iz] if ix > 0 or periodic else 0
-        etaii_zm = self.eta[ix, iz - 1] if iz > 0 else 0
+        etaii_c = self.viscosity[ix, iz]
+        etaii_xm = self.viscosity[ixm, iz] if ix > 0 or periodic else 0
+        etaii_zm = self.viscosity[ix, iz - 1] if iz > 0 else 0
         if (ix > 0 or periodic) and iz > 0:
-            etaxz_c = (self.eta[ix, iz] * self.eta[ixm, iz] *
-                       self.eta[ix, iz - 1] *
-                       self.eta[ixm, iz - 1])**0.25
+            etaxz_c = (self.viscosity[ix, iz] * self.viscosity[ixm, iz] *
+                       self.viscosity[ix, iz - 1] *
+                       self.viscosity[ixm, iz - 1])**0.25
         else:
             etaxz_c = 0
         if (ix > 0 or periodic) and iz < n_z - 1:
-            etaxz_zp = (self.eta[ix, iz + 1] *
-                        self.eta[ixm, iz + 1] * self.eta[ix, iz] *
-                        self.eta[ixm, iz])**0.25
+            etaxz_zp = (self.viscosity[ix, iz + 1] *
+                        self.viscosity[ixm, iz + 1] * self.viscosity[ix, iz] *
+                        self.viscosity[ixm, iz])**0.25
         else:
             etaxz_zp = 0
         if (ix < n_x - 1 or periodic) and iz > 0:
-            etaxz_xp = (self.eta[ixp, iz] * self.eta[ix, iz] *
-                        self.eta[ixp, iz - 1] *
-                        self.eta[ix, iz - 1])**0.25
+            etaxz_xp = (self.viscosity[ixp, iz] * self.viscosity[ix, iz] *
+                        self.viscosity[ixp, iz - 1] *
+                        self.viscosity[ix, iz - 1])**0.25
         else:
             etaxz_xp = 0
         return etaii_c, etaii_xm, etaii_zm, etaxz_c, etaxz_xp, etaxz_zp
 
-    def _stokes(self) -> None:
-        n_x = self.conf.numerical.n_x
-        n_z = self.conf.numerical.n_z
-        periodic = self.conf.physical.periodic
-        self._calc_eta()
+    def _solve_stokes(self) -> None:
+        """Solve the Stokes equation for a given temperature field."""
+        self._eval_viscosity()
+        n_x = self._conf.numerical.n_x
+        n_z = self._conf.numerical.n_z
+        periodic = self._conf.physical.periodic
         rhsz = np.zeros((n_x, n_z))
-        rhsz[:, 1:] = -self.conf.physical.ranum * (
+        rhsz[:, 1:] = -self._conf.physical.ranum * (
             self.temp[:, :-1] + self.temp[:, 1:]) / 2
 
         odz = n_z
@@ -182,7 +155,7 @@ class RayleighBenardStokes:
                 ieqcm = ieqxm + 2
 
                 etaii_c, etaii_xm, etaii_zm, etaxz_c, etaxz_xp, etaxz_zp =\
-                    self._eta_around(ix, iz)
+                    self._visco_around(ix, iz)
 
                 xmom_zero_eta = (etaii_c == 0 and etaii_xm == 0 and
                                  etaxz_c == 0 and etaxz_zp == 0)
@@ -247,33 +220,40 @@ class RayleighBenardStokes:
                         mcoef(ieqc, ieqz + idz, odz)
                 rhs[ieqc] = 0
 
-        if self.conf.physical.var_visc or self._lumat is None:
+        if self._conf.physical.var_visc or self._lumat is None:
             lumat: Callable[[ndarray], ndarray] = factorized(
                 sp.csc_matrix((coefs, (rows, cols)),
                               shape=(rhs.size, rhs.size)))
             self._lumat = lumat
         sol = self._lumat(rhs)
-        self.v_x = np.reshape(sol[::3], (n_z, n_x)).T
+        self._v_x = np.reshape(sol[::3], (n_z, n_x)).T
         # remove drift velocity (unconstrained)
         if periodic:
-            self.v_x -= np.mean(self.v_x)
-        self.v_z = np.reshape(sol[1::3], (n_z, n_x)).T
-        self.dynp = np.reshape(sol[2::3], (n_z, n_x)).T
-        self.dynp -= np.mean(self.dynp)
+            self._v_x -= np.mean(self._v_x)
+        self._v_z = np.reshape(sol[1::3], (n_z, n_x)).T
+        self._dynp = np.reshape(sol[2::3], (n_z, n_x)).T
+        self._dynp -= np.mean(self._dynp)
 
-    def _heat(self) -> None:
-        """Advection diffusion equation for time stepping"""
+    def step_forward(self) -> float:
+        """Update state according to heat equation.
+
+        Note that the Stokes equation is solved as well to keep the state
+        self-consistent.
+
+        Returns:
+            the dt used to forward the state.
+        """
         # compute stabe timestep
         # assumes n_x=n_z. To be generalized
-        dt_diff = 0.1 / self.conf.numerical.n_z**2
+        dt_diff = 0.1 / self._conf.numerical.n_z**2
         vmax = np.maximum(np.amax(np.abs(self.v_x)), np.amax(np.abs(self.v_z)))
-        dt_adv = 0.5 / self.conf.numerical.n_z / vmax
-        dt = np.minimum(dt_diff, dt_adv)
-        self.time += dt
+        dt_adv = 0.5 / self._conf.numerical.n_z / vmax
+        dt = min(dt_diff, dt_adv)
         # diffusion and internal heating
-        self.temp += dt * (self._del2temp() + self.conf.physical.int_heat)
-        # advection
-        self.temp += dt * self._donor_cell_advection()
+        self.temp = self.temp + dt * (self._del2temp() +
+                                      self._donor_cell_advection() +
+                                      self._conf.physical.int_heat)
+        return dt
 
     def _del2temp(self) -> ndarray:
         """Computes Laplacian of temperature
@@ -282,14 +262,14 @@ class RayleighBenardStokes:
         T = 0 at the top
         T = 1 at the bottom
         """
-        n_x = self.conf.numerical.n_x
-        n_z = self.conf.numerical.n_z
+        n_x = self._conf.numerical.n_x
+        n_z = self._conf.numerical.n_z
         delsqT = np.zeros_like(self.temp)
         dsq = n_z**2  # inverse of dz ^ 2
         # should be generalized for non-square grids
 
         for i in range(n_x):
-            if self.conf.physical.periodic:
+            if self._conf.physical.periodic:
                 im = (i - 1 + n_x) % n_x
                 ip = (i + 1) % n_x
             else:
@@ -319,11 +299,11 @@ class RayleighBenardStokes:
         temp = self.temp
         v_x = self.v_x
         v_z = self.v_z
-        n_x = self.conf.numerical.n_x
-        n_z = self.conf.numerical.n_z
+        n_x = self._conf.numerical.n_x
+        n_z = self._conf.numerical.n_z
 
         for i in range(n_x):
-            if self.conf.physical.periodic:
+            if self._conf.physical.periodic:
                 im = (i - 1 + n_x) % n_x
                 ip = (i + 1) % n_x
             else:
@@ -331,13 +311,13 @@ class RayleighBenardStokes:
                 ip = min(i + 1, n_x - 1)
 
             for j in range(n_z):
-                if i > 0 or self.conf.physical.periodic:
+                if i > 0 or self._conf.physical.periodic:
                     flux_xm = temp[im, j] * v_x[i, j] if v_x[i, j] > 0 else\
                         temp[i, j] * v_x[i, j]
                 else:
                     flux_xm = 0
 
-                if i < n_x - 1 or self.conf.physical.periodic:
+                if i < n_x - 1 or self._conf.physical.periodic:
                     flux_xp = temp[i, j] * v_x[ip, j] if v_x[ip, j] > 0 else\
                         temp[ip, j] * v_x[ip, j]
                 else:
@@ -359,20 +339,107 @@ class RayleighBenardStokes:
                 # assumes d_x = d_z. To be generalized
         return dtemp
 
+
+class RayleighBenardStokes:  # This is rather a run manager
+
+    """Solver of Rayleigh Benard convection at infinite Prandtl number."""
+
+    def __init__(self, conf: Config):
+        self._conf = conf
+
+        self._fstart = None
+        self._istart = -1
+        if self.conf.numerical.restart:
+            for fname in self.conf.inout.outdir.glob('fields*.npz'):
+                ifile = int(fname.name[6:-4])
+                if ifile > self._istart:
+                    self._istart = ifile
+                    self._fstart = fname
+        if self._fstart is not None:
+            with np.load(self._fstart) as fld:
+                self.time = fld['time']
+                temp = fld['T']
+        else:
+            self._istart = 0
+            temp = self._init_temp()
+            self.time = 0
+
+        self.state = StokesState(temp, conf)
+
+    @property
+    def conf(self) -> Config:
+        """Configuration of solver."""
+        return self._conf
+
+    def _outfile(self, name: str, istep: int, ext: str = None) -> Path:
+        fname = '{}{:08d}'.format(name, istep)
+        if ext is not None:
+            fname += '.{}'.format(ext)
+        return self.conf.inout.outdir / fname
+
+    def _init_temp(self) -> ndarray:
+        """Compute inital temperature."""
+        n_x = self.conf.numerical.n_x
+        n_z = self.conf.numerical.n_z
+        if self.conf.physical.pert_init == 'sin':
+            xgrid = np.linspace(0, n_x / n_z, n_x)
+            zgrid = np.linspace(0, 1, n_z)
+            temp = self.conf.physical.temp_init + \
+                0.01 * np.outer(np.sin(np.pi * xgrid),
+                                np.sin(np.pi * zgrid))
+        else:
+            temp = self.conf.physical.temp_init + \
+                0.01 * np.random.uniform(-1, 1, (n_x, n_z))
+        return temp
+
+    def _save(self, istep: int) -> None:
+        n_x = self.conf.numerical.n_x
+        n_z = self.conf.numerical.n_z
+        fname = self._outfile('fields', istep, 'npz')
+        np.savez(fname, T=self.state.temp, vx=self.state.v_x,
+                 vz=self.state.v_z, p=self.state.dynp, time=self.time)
+
+        xgrid = np.linspace(0, n_x / n_z, n_x)
+        zgrid = np.linspace(0, 1, n_z)
+        fig, axis = plt.subplots()
+        # first plot the temperature field
+        surf = axis.pcolormesh(xgrid, zgrid, self.state.temp.T, cmap='RdBu_r',
+                               shading='gouraud')
+        cbar = plt.colorbar(surf, shrink=0.5)
+        cbar.set_label('Temperature')
+        plt.axis('equal')
+        plt.axis('off')
+        axis.set_adjustable('box')
+        axis.set_xlim(0, n_x / n_z)
+        axis.set_ylim(0, 1)
+        # interpolate velocities at the same points for streamlines
+        u_x = 0.5 * (self.state.v_x + np.roll(self.state.v_x, 1, 0))
+        u_z = np.zeros_like(self.state.v_z)
+        u_z[1:] = self.state.v_z[:-1]
+        u_z += self.state.v_z
+        u_z *= 0.5
+        speed = np.sqrt(u_x ** 2 + u_z ** 2)
+        # plot the streamlines
+        lw = 2 * speed / speed.max()
+        axis.streamplot(xgrid, zgrid, u_x.T, u_z.T, color='k',
+                        linewidth=lw.T)
+        fig.savefig(self._outfile('T_v', istep, 'pdf'), bbox_inches='tight')
+        plt.close(fig)
+
     def _timeseries(self, istep: int) -> ndarray:
         """Time series diagnostic for one step."""
         n_z = self.conf.numerical.n_z
         tseries = np.empty(_NTSERIES)
         tseries[0] = istep
         tseries[1] = self.time
-        tseries[2] = np.amin(self.temp)
-        tseries[3] = np.mean(self.temp)
-        tseries[4] = np.amax(self.temp)
-        ekin = np.mean(self.v_x ** 2 + self.v_z ** 2)
+        tseries[2] = np.amin(self.state.temp)
+        tseries[3] = np.mean(self.state.temp)
+        tseries[4] = np.amax(self.state.temp)
+        ekin = np.mean(self.state.v_x ** 2 + self.state.v_z ** 2)
         tseries[5] = np.sqrt(ekin)
-        tseries[6] = np.sqrt(np.mean(self.v_x[:, n_z - 1] ** 2))
-        tseries[7] = 2 * n_z * (1 - np.mean(self.temp[:, 0]))
-        tseries[8] = 2 * n_z * np.mean(self.temp[:, n_z - 1])
+        tseries[6] = np.sqrt(np.mean(self.state.v_x[:, n_z - 1] ** 2))
+        tseries[7] = 2 * n_z * (1 - np.mean(self.state.temp[:, 0]))
+        tseries[8] = 2 * n_z * np.mean(self.state.temp[:, n_z - 1])
         return tseries
 
     def solve(self, progress: bool = False) -> None:
@@ -381,33 +448,15 @@ class RayleighBenardStokes:
         Args:
             progress (bool): output progress.
         """
-        fstart = None
-        istart = -1
-        if self.conf.numerical.restart:
-            for fname in self.conf.inout.outdir.glob('fields*.npz'):
-                ifile = int(fname.name[6:-4])
-                if ifile > istart:
-                    istart = ifile
-                    fstart = fname
         self.conf.inout.outdir.mkdir(exist_ok=True)
-        if fstart is not None:
-            with np.load(fstart) as fld:
-                self.temp = fld['T']
-                self.time = fld['time']
-        else:
-            istart = 0
-            self._init_temp()
-            self.time = 0
-        self._stokes()
-        if fstart is None:
+        if self._fstart is None:
             self._save(0)
-
         tfilename = self.conf.inout.outdir / 'time.h5'
-        if fstart is None or not tfilename.exists():
+        if self._fstart is None or not tfilename.exists():
             tfile = h5py.File(tfilename, 'w')
             dset = tfile.create_dataset('series', (1, _NTSERIES),
                                         maxshape=(None, _NTSERIES),
-                                        data=self._timeseries(istart))
+                                        data=self._timeseries(self._istart))
         else:
             tfile = h5py.File(tfilename, 'a')
             dset = tfile['series']
@@ -417,11 +466,11 @@ class RayleighBenardStokes:
         step_msg = '\rstep: {{:{}d}}/{}'.format(len(str(nsteps)), nsteps)
         tseries = np.zeros((nwrite, _NTSERIES))
 
-        for irun, istep in enumerate(range(istart + 1, nsteps + 1)):
+        for irun, istep in enumerate(range(self._istart + 1, nsteps + 1)):
             if progress:
                 print(step_msg.format(istep), end='')
-            self._heat()
-            self._stokes()
+            dtime = self.state.step_forward()
+            self.time += dtime
             tseries[irun % nwrite] = self._timeseries(istep)
             if (irun + 1) % nwrite == 0:
                 self._save(istep)
