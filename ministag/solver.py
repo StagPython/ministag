@@ -126,19 +126,14 @@ class StokesState:
         # indices offset
         idx = 3
         idz = n_x * 3
-        # a priori number of non-zero matrix coefficients
-        n_non0 = (11 + 11 + 4) * n_x * n_z
-        rows = np.zeros(n_non0)
-        cols = np.zeros(n_non0)
-        coefs = np.zeros(n_non0)
-        n_non0 = 0  # track number of non zeros coef
+        rows = []
+        cols = []
+        coefs = []
 
         def mcoef(row: int, col: int, coef: float) -> None:
-            nonlocal n_non0
-            rows[n_non0] = row
-            cols[n_non0] = col
-            coefs[n_non0] = coef
-            n_non0 += 1
+            rows.append(row)
+            cols.append(col)
+            coefs.append(coef)
 
         for iz in range(n_z):
             for ix in range(n_x):
