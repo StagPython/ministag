@@ -9,12 +9,41 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 if typing.TYPE_CHECKING:
-    from typing import Optional, Callable, Tuple
+    from typing import Optional, Callable, Tuple, List
     from numpy import ndarray
     from .config import Config
 
 
 _NTSERIES = 9
+
+
+class SparseMatrix:
+
+    """Sparse matrix."""
+
+    def __init__(self, size: int):
+        self._rows: List[int] = []
+        self._cols: List[int] = []
+        self._coefs: List[float] = []
+        self._size = size
+
+    def coef(self, irow: int, icol: int, value: float) -> None:
+        """Add a new coefficient in the matrix.
+
+        Args:
+            irow: row index.
+            icol: column index.
+            value: value of the coefficient.
+        """
+        self._rows.append(irow)
+        self._cols.append(icol)
+        self._coefs.append(value)
+
+    def lu_solver(self) -> Callable[[ndarray], ndarray]:
+        """Return a solver based on LU factorization."""
+        return factorized(
+            sp.csc_matrix((self._coefs, (self._rows, self._cols)),
+                          shape=(self._size, self._size)))
 
 
 class StokesState:
@@ -126,14 +155,8 @@ class StokesState:
         # indices offset
         idx = 3
         idz = n_x * 3
-        rows = []
-        cols = []
-        coefs = []
 
-        def mcoef(row: int, col: int, coef: float) -> None:
-            rows.append(row)
-            cols.append(col)
-            coefs.append(coef)
+        spm = SparseMatrix(rhs.size)
 
         for iz in range(n_z):
             for ix in range(n_x):
@@ -159,67 +182,64 @@ class StokesState:
 
                 # x-momentum
                 if (ix > 0 or periodic) and not xmom_zero_eta:
-                    mcoef(ieqx, ieqx, -odz2 * (2 * etaii_c + 2 * etaii_xm +
-                                               etaxz_c + etaxz_zp))
-                    mcoef(ieqx, ieqxm, 2 * odz2 * etaii_xm)
-                    mcoef(ieqx, ieqz, -odz2 * etaxz_c)
-                    mcoef(ieqx, ieqzm, odz2 * etaxz_c)
-                    mcoef(ieqx, ieqc, -odz)
-                    mcoef(ieqx, ieqcm, odz)
+                    spm.coef(ieqx, ieqx, -odz2 * (2 * etaii_c + 2 * etaii_xm +
+                                                  etaxz_c + etaxz_zp))
+                    spm.coef(ieqx, ieqxm, 2 * odz2 * etaii_xm)
+                    spm.coef(ieqx, ieqz, -odz2 * etaxz_c)
+                    spm.coef(ieqx, ieqzm, odz2 * etaxz_c)
+                    spm.coef(ieqx, ieqc, -odz)
+                    spm.coef(ieqx, ieqcm, odz)
 
                     if ix + 1 < n_x or periodic:
-                        mcoef(ieqx, ieqxp, 2 * odz2 * etaii_c)
+                        spm.coef(ieqx, ieqxp, 2 * odz2 * etaii_c)
                     if iz + 1 < n_z:
-                        mcoef(ieqx, ieqx + idz, odz2 * etaxz_zp)
-                        mcoef(ieqx, ieqz + idz, odz2 * etaxz_zp)
-                        mcoef(ieqx, ieqz + idz - idx, -odz2 * etaxz_zp)
+                        spm.coef(ieqx, ieqx + idz, odz2 * etaxz_zp)
+                        spm.coef(ieqx, ieqz + idz, odz2 * etaxz_zp)
+                        spm.coef(ieqx, ieqz + idz - idx, -odz2 * etaxz_zp)
                     if iz > 0:
-                        mcoef(ieqx, ieqx - idz, odz2 * etaxz_c)
+                        spm.coef(ieqx, ieqx - idz, odz2 * etaxz_c)
                     rhs[ieqx] = 0
                 else:
-                    mcoef(ieqx, ieqx, 1)
+                    spm.coef(ieqx, ieqx, 1)
                     rhs[ieqx] = 0
 
                 # z-momentum
                 if iz > 0 and not zmom_zero_eta:
-                    mcoef(ieqz, ieqz, -odz2 * (2 * etaii_c + 2 * etaii_zm +
-                                               etaxz_c + etaxz_xp))
-                    mcoef(ieqz, ieqz - idz, 2 * odz2 * etaii_zm)
-                    mcoef(ieqz, ieqx, -odz2 * etaxz_c)
-                    mcoef(ieqz, ieqx - idz, odz2 * etaxz_c)
-                    mcoef(ieqz, ieqc, -odz)
-                    mcoef(ieqz, ieqc - idz, odz)
+                    spm.coef(ieqz, ieqz, -odz2 * (2 * etaii_c + 2 * etaii_zm +
+                                                  etaxz_c + etaxz_xp))
+                    spm.coef(ieqz, ieqz - idz, 2 * odz2 * etaii_zm)
+                    spm.coef(ieqz, ieqx, -odz2 * etaxz_c)
+                    spm.coef(ieqz, ieqx - idz, odz2 * etaxz_c)
+                    spm.coef(ieqz, ieqc, -odz)
+                    spm.coef(ieqz, ieqc - idz, odz)
 
                     if iz + 1 < n_z:
-                        mcoef(ieqz, ieqz + idz, 2 * odz2 * etaii_c)
+                        spm.coef(ieqz, ieqz + idz, 2 * odz2 * etaii_c)
                     if ix + 1 < n_x or periodic:
-                        mcoef(ieqz, ieqzp, odz2 * etaxz_xp)
-                        mcoef(ieqz, ieqxp, odz2 * etaxz_xp)
-                        mcoef(ieqz, ieqxpm, -odz2 * etaxz_xp)
+                        spm.coef(ieqz, ieqzp, odz2 * etaxz_xp)
+                        spm.coef(ieqz, ieqxp, odz2 * etaxz_xp)
+                        spm.coef(ieqz, ieqxpm, -odz2 * etaxz_xp)
                     if ix > 0 or periodic:
-                        mcoef(ieqz, ieqzm, odz2 * etaxz_c)
+                        spm.coef(ieqz, ieqzm, odz2 * etaxz_c)
                     rhs[ieqz] = rhsz[ix, iz]
                 else:
-                    mcoef(ieqz, ieqz, 1)
+                    spm.coef(ieqz, ieqz, 1)
                     rhs[ieqz] = 0
 
                 # continuity
                 if (ix == 0 and iz == 0) or (xmom_zero_eta and zmom_zero_eta):
-                    mcoef(ieqc, ieqc, 1)
+                    spm.coef(ieqc, ieqc, 1)
                 else:
-                    mcoef(ieqc, ieqx, -odz)
-                    mcoef(ieqc, ieqz, -odz)
+                    spm.coef(ieqc, ieqx, -odz)
+                    spm.coef(ieqc, ieqz, -odz)
                     if ix + 1 < n_x or periodic:
-                        mcoef(ieqc, ieqxp, odz)
+                        spm.coef(ieqc, ieqxp, odz)
                     if iz + 1 < n_z:
-                        mcoef(ieqc, ieqz + idz, odz)
+                        spm.coef(ieqc, ieqz + idz, odz)
                 rhs[ieqc] = 0
 
         if self._conf.physical.var_visc or self._lumat is None:
-            lumat: Callable[[ndarray], ndarray] = factorized(
-                sp.csc_matrix((coefs, (rows, cols)),
-                              shape=(rhs.size, rhs.size)))
-            self._lumat = lumat
+            self._lumat = spm.lu_solver()
         sol = self._lumat(rhs)
         self._v_x = np.reshape(sol[::3], (n_z, n_x)).T
         # remove drift velocity (unconstrained)
