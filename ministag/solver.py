@@ -340,9 +340,9 @@ class StokesState:
         return dtemp
 
 
-class RayleighBenardStokes:  # This is rather a run manager
+class RunManager:
 
-    """Solver of Rayleigh Benard convection at infinite Prandtl number."""
+    """Simulation of the Rayleigh Bénard convection problem."""
 
     def __init__(self, conf: Config):
         self._conf = conf

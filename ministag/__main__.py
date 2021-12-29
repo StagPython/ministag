@@ -32,7 +32,7 @@ def main() -> None:
     from . import solver
     par = pathlib.Path('par.toml')
     conf = Config.from_file(par) if par.is_file() else Config()
-    rb2d = solver.RayleighBenardStokes(conf)
+    rb2d = solver.RunManager(conf)
     if not rb2d.conf.numerical.restart and conf.inout.outdir.is_dir():
         print('Output directory already exists.',
               'Resuming may lead to loss of data.')
