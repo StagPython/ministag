@@ -12,12 +12,16 @@ Installing
 
 You can install the executable to be run anywhere. If you are within
 a python virtual environment, just type:
+
 ``python3 -m pip install -U .``
+
 This installs dependencies and the ministag executable in
 ``/path/to/env/bin``.
 
 Otherwise, type:
+
 ``python3 -m pip install -U --user .``
+
 to install the ministag excutable in ``~/.local/bin``, which you need
 to add in your path.
 
@@ -26,7 +30,9 @@ Running
 =================
 
 Just type:
+
 ``ministag``
+
 and the code will run with simple parameters for a short
 time. Results are stored in a directory named ``output`` in the form
 of npz, hdf5 and pdf files. Also stored is the an input parameter file
