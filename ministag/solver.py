@@ -185,13 +185,8 @@ class StokesState:
                 eta = ViscoStencil.eval_at(self.viscosity, ix, iz,
                                            self._conf.physical.periodic)
 
-                xmom_zero_eta = (eta.ctr == 0 and eta.x_m == 0 and
-                                 eta.xz_c == 0 and eta.xz_zp == 0)
-                zmom_zero_eta = (eta.ctr == 0 and eta.z_m == 0 and
-                                 eta.xz_c == 0 and eta.xz_xp == 0)
-
                 # x-momentum
-                if (ix > 0 or periodic) and not xmom_zero_eta:
+                if ix > 0 or periodic:
                     spm.coef(ieqx, ieqx, -odz2 * (2 * eta.ctr + 2 * eta.x_m +
                                                   eta.xz_c + eta.xz_zp))
                     spm.coef(ieqx, ieqxm, 2 * odz2 * eta.x_m)
@@ -214,7 +209,7 @@ class StokesState:
                     rhs[ieqx] = 0
 
                 # z-momentum
-                if iz > 0 and not zmom_zero_eta:
+                if iz > 0:
                     spm.coef(ieqz, ieqz, -odz2 * (2 * eta.ctr + 2 * eta.z_m +
                                                   eta.xz_c + eta.xz_xp))
                     spm.coef(ieqz, ieqz - idz, 2 * odz2 * eta.z_m)
@@ -237,7 +232,7 @@ class StokesState:
                     rhs[ieqz] = 0
 
                 # continuity
-                if (ix == 0 and iz == 0) or (xmom_zero_eta and zmom_zero_eta):
+                if ix == 0 and iz == 0:
                     spm.coef(ieqc, ieqc, 1)
                 else:
                     spm.coef(ieqc, ieqx, -odz)
