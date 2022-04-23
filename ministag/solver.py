@@ -1,4 +1,5 @@
 from __future__ import annotations
+from dataclasses import dataclass
 from pathlib import Path
 import typing
 
@@ -9,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 if typing.TYPE_CHECKING:
-    from typing import Optional, Callable, Tuple, List
+    from typing import Optional, Callable, List
     from numpy import ndarray
     from .config import Config
 
@@ -44,6 +45,51 @@ class SparseMatrix:
         return factorized(
             sp.csc_matrix((self._coefs, (self._rows, self._cols)),
                           shape=(self._size, self._size)))
+
+
+@dataclass(frozen=True)
+class ViscoStencil:
+
+    """Viscosity values around a given point."""
+
+    ctr: float
+    x_m: float
+    z_m: float
+    xz_c: float
+    xz_xp: float
+    xz_zp: float
+
+    @staticmethod
+    def eval_at(
+        visco: np.ndarray, ix: int, iz: int, periodic: bool
+    ) -> ViscoStencil:
+        """Viscosity around a grid point."""
+        n_x, n_z = visco.shape
+
+        # these won't be used around the boundaries if not periodic
+        ixm = (ix - 1) % n_x
+        ixp = (ix + 1) % n_x
+
+        etaii_c = visco[ix, iz]
+        etaii_xm = visco[ixm, iz] if ix > 0 or periodic else 0
+        etaii_zm = visco[ix, iz - 1] if iz > 0 else 0
+        if (ix > 0 or periodic) and iz > 0:
+            etaxz_c = (visco[ix, iz] * visco[ixm, iz] *
+                       visco[ix, iz - 1] * visco[ixm, iz - 1])**0.25
+        else:
+            etaxz_c = 0
+        if (ix > 0 or periodic) and iz < n_z - 1:
+            etaxz_zp = (visco[ix, iz + 1] * visco[ixm, iz + 1] *
+                        visco[ix, iz] * visco[ixm, iz])**0.25
+        else:
+            etaxz_zp = 0
+        if (ix < n_x - 1 or periodic) and iz > 0:
+            etaxz_xp = (visco[ixp, iz] * visco[ix, iz] *
+                        visco[ixp, iz - 1] * visco[ix, iz - 1])**0.25
+        else:
+            etaxz_xp = 0
+        return ViscoStencil(ctr=etaii_c, x_m=etaii_xm, z_m=etaii_zm,
+                            xz_c=etaxz_c, xz_xp=etaxz_xp, xz_zp=etaxz_zp)
 
 
 class StokesState:
@@ -102,42 +148,6 @@ class StokesState:
         else:
             self._visco = np.ones((n_x, n_z))
 
-    def _visco_around(self, ix: int, iz: int) -> Tuple[float, ...]:
-        """Viscosity around a grid point."""
-        n_x = self._conf.numerical.n_x
-        n_z = self._conf.numerical.n_z
-        periodic = self._conf.physical.periodic
-        # deal with boundary conditions on vertical planes
-        if periodic:
-            ixm = (ix - 1 + n_x) % n_x
-            ixp = (ix + 1) % n_x
-        else:
-            ixm = max(ix - 1, 0)
-            ixp = min(ix + 1, n_x - 1)
-
-        etaii_c = self.viscosity[ix, iz]
-        etaii_xm = self.viscosity[ixm, iz] if ix > 0 or periodic else 0
-        etaii_zm = self.viscosity[ix, iz - 1] if iz > 0 else 0
-        if (ix > 0 or periodic) and iz > 0:
-            etaxz_c = (self.viscosity[ix, iz] * self.viscosity[ixm, iz] *
-                       self.viscosity[ix, iz - 1] *
-                       self.viscosity[ixm, iz - 1])**0.25
-        else:
-            etaxz_c = 0
-        if (ix > 0 or periodic) and iz < n_z - 1:
-            etaxz_zp = (self.viscosity[ix, iz + 1] *
-                        self.viscosity[ixm, iz + 1] * self.viscosity[ix, iz] *
-                        self.viscosity[ixm, iz])**0.25
-        else:
-            etaxz_zp = 0
-        if (ix < n_x - 1 or periodic) and iz > 0:
-            etaxz_xp = (self.viscosity[ixp, iz] * self.viscosity[ix, iz] *
-                        self.viscosity[ixp, iz - 1] *
-                        self.viscosity[ix, iz - 1])**0.25
-        else:
-            etaxz_xp = 0
-        return etaii_c, etaii_xm, etaii_zm, etaxz_c, etaxz_xp, etaxz_zp
-
     def _solve_stokes(self) -> None:
         """Solve the Stokes equation for a given temperature field."""
         self._eval_viscosity()
@@ -172,32 +182,32 @@ class StokesState:
                 ieqzm = ieqxm + 1
                 ieqcm = ieqxm + 2
 
-                etaii_c, etaii_xm, etaii_zm, etaxz_c, etaxz_xp, etaxz_zp =\
-                    self._visco_around(ix, iz)
+                eta = ViscoStencil.eval_at(self.viscosity, ix, iz,
+                                           self._conf.physical.periodic)
 
-                xmom_zero_eta = (etaii_c == 0 and etaii_xm == 0 and
-                                 etaxz_c == 0 and etaxz_zp == 0)
-                zmom_zero_eta = (etaii_c == 0 and etaii_zm == 0 and
-                                 etaxz_c == 0 and etaxz_xp == 0)
+                xmom_zero_eta = (eta.ctr == 0 and eta.x_m == 0 and
+                                 eta.xz_c == 0 and eta.xz_zp == 0)
+                zmom_zero_eta = (eta.ctr == 0 and eta.z_m == 0 and
+                                 eta.xz_c == 0 and eta.xz_xp == 0)
 
                 # x-momentum
                 if (ix > 0 or periodic) and not xmom_zero_eta:
-                    spm.coef(ieqx, ieqx, -odz2 * (2 * etaii_c + 2 * etaii_xm +
-                                                  etaxz_c + etaxz_zp))
-                    spm.coef(ieqx, ieqxm, 2 * odz2 * etaii_xm)
-                    spm.coef(ieqx, ieqz, -odz2 * etaxz_c)
-                    spm.coef(ieqx, ieqzm, odz2 * etaxz_c)
+                    spm.coef(ieqx, ieqx, -odz2 * (2 * eta.ctr + 2 * eta.x_m +
+                                                  eta.xz_c + eta.xz_zp))
+                    spm.coef(ieqx, ieqxm, 2 * odz2 * eta.x_m)
+                    spm.coef(ieqx, ieqz, -odz2 * eta.xz_c)
+                    spm.coef(ieqx, ieqzm, odz2 * eta.xz_c)
                     spm.coef(ieqx, ieqc, -odz)
                     spm.coef(ieqx, ieqcm, odz)
 
                     if ix + 1 < n_x or periodic:
-                        spm.coef(ieqx, ieqxp, 2 * odz2 * etaii_c)
+                        spm.coef(ieqx, ieqxp, 2 * odz2 * eta.ctr)
                     if iz + 1 < n_z:
-                        spm.coef(ieqx, ieqx + idz, odz2 * etaxz_zp)
-                        spm.coef(ieqx, ieqz + idz, odz2 * etaxz_zp)
-                        spm.coef(ieqx, ieqz + idz - idx, -odz2 * etaxz_zp)
+                        spm.coef(ieqx, ieqx + idz, odz2 * eta.xz_zp)
+                        spm.coef(ieqx, ieqz + idz, odz2 * eta.xz_zp)
+                        spm.coef(ieqx, ieqz + idz - idx, -odz2 * eta.xz_zp)
                     if iz > 0:
-                        spm.coef(ieqx, ieqx - idz, odz2 * etaxz_c)
+                        spm.coef(ieqx, ieqx - idz, odz2 * eta.xz_c)
                     rhs[ieqx] = 0
                 else:
                     spm.coef(ieqx, ieqx, 1)
@@ -205,22 +215,22 @@ class StokesState:
 
                 # z-momentum
                 if iz > 0 and not zmom_zero_eta:
-                    spm.coef(ieqz, ieqz, -odz2 * (2 * etaii_c + 2 * etaii_zm +
-                                                  etaxz_c + etaxz_xp))
-                    spm.coef(ieqz, ieqz - idz, 2 * odz2 * etaii_zm)
-                    spm.coef(ieqz, ieqx, -odz2 * etaxz_c)
-                    spm.coef(ieqz, ieqx - idz, odz2 * etaxz_c)
+                    spm.coef(ieqz, ieqz, -odz2 * (2 * eta.ctr + 2 * eta.z_m +
+                                                  eta.xz_c + eta.xz_xp))
+                    spm.coef(ieqz, ieqz - idz, 2 * odz2 * eta.z_m)
+                    spm.coef(ieqz, ieqx, -odz2 * eta.xz_c)
+                    spm.coef(ieqz, ieqx - idz, odz2 * eta.xz_c)
                     spm.coef(ieqz, ieqc, -odz)
                     spm.coef(ieqz, ieqc - idz, odz)
 
                     if iz + 1 < n_z:
-                        spm.coef(ieqz, ieqz + idz, 2 * odz2 * etaii_c)
+                        spm.coef(ieqz, ieqz + idz, 2 * odz2 * eta.ctr)
                     if ix + 1 < n_x or periodic:
-                        spm.coef(ieqz, ieqzp, odz2 * etaxz_xp)
-                        spm.coef(ieqz, ieqxp, odz2 * etaxz_xp)
-                        spm.coef(ieqz, ieqxpm, -odz2 * etaxz_xp)
+                        spm.coef(ieqz, ieqzp, odz2 * eta.xz_xp)
+                        spm.coef(ieqz, ieqxp, odz2 * eta.xz_xp)
+                        spm.coef(ieqz, ieqxpm, -odz2 * eta.xz_xp)
                     if ix > 0 or periodic:
-                        spm.coef(ieqz, ieqzm, odz2 * etaxz_c)
+                        spm.coef(ieqz, ieqzm, odz2 * eta.xz_c)
                     rhs[ieqz] = rhsz[ix, iz]
                 else:
                     spm.coef(ieqz, ieqz, 1)
