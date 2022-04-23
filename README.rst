@@ -6,36 +6,36 @@ MiniStag
 This is inspired from the 2D convection code by Paul Tackley
 available at http://jupiter.ethz.ch/~pjt/Convection2D.m
 
-=================
-Installing
-=================
+Installation
+============
 
-You can install the executable to be run anywhere. If you are within
-a python virtual environment, just type:
+``ministag`` is coded in Python and can be installed using ``pip``.  Make sure
+your version of ``pip`` is up-to-date::
 
-``python3 -m pip install -U .``
+    $ python3 -m pip install -U --user pip
 
-This installs dependencies and the ministag executable in
-``/path/to/env/bin``.
+You can then install ``ministag`` with the following commands from the root of
+the repository (i.e. where the ``pyproject.toml`` file is).
 
-Otherwise, type:
+You might want to create a virtual environment first (skip these to install in
+your regular user directory, often ``~/.local/bin``)::
 
-``python3 -m pip install -U --user .``
+    $ python3 -m venv venv_ministag
+    $ source venv_ministag/bin/activate
 
-to install the ministag excutable in ``~/.local/bin``, which you need
-to add in your path.
+You can then install with the following::
 
-=================
+    $ python3 -m pip install -U .
+
 Running
-=================
+=======
 
-Just type:
+Just type::
 
-``ministag``
+    $ ministag
 
-and the code will run with simple parameters for a short
-time. Results are stored in a directory named ``output`` in the form
-of npz, hdf5 and pdf files. Also stored is the an input parameter file
-corresponding to this run and named ``par.toml``. To run other cases,
-simply copy that file elsewhere, modify it as needed and run
-``ministag`` again. 
+and the code will run with simple parameters for a short time. Results can be
+found in a directory named ``output``. Also stored is the an input parameter
+file corresponding to this run and named ``par.toml``. To run other cases,
+simply copy that file elsewhere, modify it as needed and run ``ministag``
+again.

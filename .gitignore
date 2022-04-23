@@ -4,3 +4,4 @@ __pycache__
 .coverage
 .pytest_cache
 .tox
+/venv_*
