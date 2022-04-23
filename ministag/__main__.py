@@ -29,9 +29,14 @@ def main() -> None:
  _//---\|_
 /         /
 """)
-    from . import solver
     par = pathlib.Path('par.toml')
-    conf = Config.from_file(par) if par.is_file() else Config()
+    if not par.is_file():
+        print(f"Parameter file `{par}` not found, creating one for you.",
+              "Modify it to your taste and rerun ministag.", sep='\n')
+        Config().to_file(par)
+        sys.exit()
+    conf = Config.from_file(par)
+    from . import solver
     rb2d = solver.RunManager(conf)
     if not rb2d.conf.numerical.restart and conf.inout.outdir.is_dir():
         print('Output directory already exists.',

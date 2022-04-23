@@ -30,12 +30,10 @@ You can then install with the following::
 Running
 =======
 
-Just type::
+``ministag`` is configurable through a parameter file named ``par.toml``.  If
+that file doesn't exist, run ministag once to create it with default values::
 
     $ ministag
 
-and the code will run with simple parameters for a short time. Results can be
-found in a directory named ``output``. Also stored is the an input parameter
-file corresponding to this run and named ``par.toml``. To run other cases,
-simply copy that file elsewhere, modify it as needed and run ``ministag``
-again.
+You can then modify ``par.toml`` as desired and rerun ``ministag`` to perform
+your simulation.
