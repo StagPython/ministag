@@ -29,13 +29,14 @@ def main() -> None:
  _//---\|_
 /         /
 """)
+    conf = Config.default_()
     par = pathlib.Path('par.toml')
     if not par.is_file():
         print(f"Parameter file `{par}` not found, creating one for you.",
               "Modify it to your taste and rerun ministag.", sep='\n')
-        Config().to_file(par)
+        conf.to_file_(par)
         sys.exit()
-    conf = Config.from_file(par)
+    conf.update_from_file_(par)
     from . import solver
     rb2d = solver.RunManager(conf)
     if not rb2d.conf.numerical.restart and conf.inout.outdir.is_dir():

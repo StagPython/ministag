@@ -507,4 +507,4 @@ class RunManager:
             parfile: path of the par file where the configuration should be
                 dumped.
         """
-        self.conf.to_file(parfile)
+        self.conf.to_file_(parfile)
