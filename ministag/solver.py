@@ -419,6 +419,8 @@ class RunManager:
         np.savez(fname, T=self.state.temp, vx=self.state.v_x,
                  vz=self.state.v_z, p=self.state.dynp, time=self.time)
 
+        if not self._conf.inout.figures:
+            return
         xgrid = np.linspace(0, n_x / n_z, n_x)
         zgrid = np.linspace(0, 1, n_z)
         fig, axis = plt.subplots()

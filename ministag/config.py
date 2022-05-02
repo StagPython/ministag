@@ -38,6 +38,8 @@ class Physical(Section):
 class InOut(Section):
     """Configuration of input and output."""
     outdir: Path = path_entry(path="output", doc="output directory")
+    figures: bool = entry(val=True,
+                          doc="create figures with temperature and velocity")
 
 
 @dataclass
