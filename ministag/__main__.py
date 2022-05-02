@@ -23,7 +23,7 @@ def _sigint_handler(*_: Any) -> NoReturn:
     sys.exit()
 
 
-def _print_doc(conf: Config):
+def _print_doc(conf: Config) -> None:
     for sec in fields(conf):
         print(f"\n{sec.name}:")
         section: Section = getattr(conf, sec.name)
