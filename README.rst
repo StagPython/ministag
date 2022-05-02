@@ -36,4 +36,7 @@ that file doesn't exist, run ministag once to create it with default values::
     $ ministag
 
 You can then modify ``par.toml`` as desired and rerun ``ministag`` to perform
-your simulation.
+your simulation.  You can run the following to display a short explanation of
+the available options::
+
+    $ ministag help
