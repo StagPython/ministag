@@ -9,6 +9,8 @@ import scipy.sparse as sp
 import matplotlib.pyplot as plt
 import numpy as np
 
+from .init import StartFileIC
+
 if typing.TYPE_CHECKING:
     from typing import Optional, Callable, List
     from numpy import ndarray
@@ -368,21 +370,20 @@ class RunManager:
         self._conf = conf
 
         self._fstart = None
-        self._istart = -1
         if self.conf.numerical.restart:
-            for fname in self.conf.inout.outdir.glob('fields*.npz'):
-                ifile = int(fname.name[6:-4])
-                if ifile > self._istart:
-                    self._istart = ifile
-                    self._fstart = fname
+            try:
+                self._fstart = max(self.conf.inout.outdir.glob('fields*.npz'))
+            except ValueError:
+                pass
         if self._fstart is not None:
-            with np.load(self._fstart) as fld:
-                self.time = fld['time']
-                temp = fld['T']
+            print(f"restarting from {self._fstart}")
+            init_cond = StartFileIC(self._fstart).build_ic(conf)
         else:
-            self._istart = 0
-            temp = self._init_temp()
-            self.time = 0
+            init_cond = conf.physical.init_cond.build_ic(conf)
+
+        self._istart = init_cond.istart
+        self.time = init_cond.time
+        temp = init_cond.temperature
 
         self.state = StokesState(temp, conf)
 
@@ -397,27 +398,13 @@ class RunManager:
             fname += '.{}'.format(ext)
         return self.conf.inout.outdir / fname
 
-    def _init_temp(self) -> ndarray:
-        """Compute inital temperature."""
-        n_x = self.conf.numerical.n_x
-        n_z = self.conf.numerical.n_z
-        if self.conf.physical.pert_init == 'sin':
-            xgrid = np.linspace(0, n_x / n_z, n_x)
-            zgrid = np.linspace(0, 1, n_z)
-            temp = self.conf.physical.temp_init + \
-                0.01 * np.outer(np.sin(np.pi * xgrid),
-                                np.sin(np.pi * zgrid))
-        else:
-            temp = self.conf.physical.temp_init + \
-                0.01 * np.random.uniform(-1, 1, (n_x, n_z))
-        return temp
-
     def _save(self, istep: int) -> None:
         n_x = self.conf.numerical.n_x
         n_z = self.conf.numerical.n_z
         fname = self._outfile('fields', istep, 'npz')
         np.savez(fname, T=self.state.temp, vx=self.state.v_x,
-                 vz=self.state.v_z, p=self.state.dynp, time=self.time)
+                 vz=self.state.v_z, p=self.state.dynp, time=self.time,
+                 step=istep)
 
         if not self._conf.inout.figures:
             return

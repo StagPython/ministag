@@ -5,6 +5,8 @@ from pathlib import Path
 from loam.base import entry, Section, ConfigBase
 from loam.tools import path_entry
 
+from .init import ICFactory
+
 
 @dataclass
 class Numerical(Section):
@@ -21,10 +23,10 @@ class Physical(Section):
     """Configuration of physical domain."""
     ranum: float = entry(val=3e3, doc="Rayleigh number")
     int_heat: float = entry(val=0., doc="internal heating")
-    temp_init: float = entry(val=0.5, doc="average initial temperature")
-    pert_init: str = entry(
-        val="random",
-        doc="initial temperature perturbation, either 'random' or 'sin'")
+    init_cond: ICFactory = entry(
+        val_toml="random", doc="initial condition",
+        from_toml=ICFactory.from_name_or_dict,  # type: ignore
+        to_toml=ICFactory.to_dict)
     var_visc: bool = entry(val=False, doc="whether viscosity is variable")
     var_visc_temp: float = entry(
         val=1e6, doc="viscosity contrast with temperature")
