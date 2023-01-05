@@ -392,7 +392,9 @@ class RunManager:
         """Configuration of solver."""
         return self._conf
 
-    def _outfile(self, name: str, istep: int, ext: str = None) -> Path:
+    def _outfile(
+        self, name: str, istep: int, ext: Optional[str] = None
+    ) -> Path:
         fname = '{}{:08d}'.format(name, istep)
         if ext is not None:
             fname += '.{}'.format(ext)
