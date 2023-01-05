@@ -1,6 +1,46 @@
 [build-system]
-requires = ["setuptools>=51"]
+requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "ministag"
+version = "0.1.0"
+description = "2D infinite-Prandtl convection code"
+readme = "README.rst"
+authors = [
+    {name = "Adrien Morison", email = "adrien.morison@gmail.com"},
+    {name = "Stéphane Labrosse"},
+]
+maintainers = [
+    {name = "Adrien Morison", email = "adrien.morison@gmail.com"},
+]
+license = {file = "LICENSE"}
+urls = {homepage = "https://github.com/StagPython/ministag"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+]
+requires-python = ">=3.7"
+dependencies = [
+    "h5py>=3.0",
+    "loam>=0.7.0,<0.8.0",
+    "matplotlib>=3.3",
+    "numpy>=1.19",
+    "scipy>=1.5",
+]
+
+[project.scripts]
+ministag = "ministag.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["ministag"]
+namespaces = false
 
 [tool.mypy]
 disallow_untyped_defs = true
