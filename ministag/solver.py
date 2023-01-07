@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 import typing
 
@@ -18,6 +19,42 @@ if typing.TYPE_CHECKING:
 
 
 _NTSERIES = 9
+
+
+# Many parts of the code assume a grid with constant spacing and the same
+# spacing in both directions, this should be fixed.
+@dataclass(frozen=True)
+class Grid:
+    n_x: int
+    n_z: int
+
+    @property
+    def aspect_ratio(self) -> float:
+        return self.n_x / self.n_z
+
+    @property
+    def d_x(self) -> float:
+        return self.d_z
+
+    @property
+    def d_z(self) -> float:
+        return 1 / self.n_z
+
+    @cached_property
+    def x_walls(self) -> NDArray[np.float64]:
+        return np.linspace(0., self.aspect_ratio, self.n_x + 1)
+
+    @cached_property
+    def z_walls(self) -> NDArray[np.float64]:
+        return np.linspace(0., 1., self.n_z + 1)
+
+    @cached_property
+    def x_centers(self) -> NDArray[np.float64]:
+        return (self.x_walls[:-1] + self.x_walls[1:]) / 2
+
+    @cached_property
+    def z_centers(self) -> NDArray[np.float64]:
+        return (self.z_walls[:-1] + self.z_walls[1:]) / 2
 
 
 class SparseMatrix:
@@ -102,9 +139,10 @@ class StokesState:
     temperature field.
     """
 
-    def __init__(self, temp: NDArray, conf: Config):
+    def __init__(self, temp: NDArray, grid: Grid, conf: Config):
         self._conf = conf
         self._lumat: Optional[Callable[[NDArray], NDArray]] = None
+        self.grid = grid
         self.temp = temp
 
     @property
@@ -139,28 +177,26 @@ class StokesState:
 
     def _eval_viscosity(self) -> None:
         """Compute viscosity for a given temperature field."""
-        n_x = self._conf.numerical.n_x
-        n_z = self._conf.numerical.n_z
+        grd = self.grid
         if self._conf.physical.var_visc:
-            d_z = 1 / n_z
             a_visc = np.log(self._conf.physical.var_visc_temp)
             b_visc = np.log(self._conf.physical.var_visc_depth)
-            depth = 0.5 - np.linspace(0.5 * d_z, 1 - 0.5 * d_z, n_z)
+            depth = 0.5 - grd.z_centers
             self._visco = np.exp(-a_visc * (self.temp - 0.5) + b_visc * depth)
         else:
-            self._visco = np.ones((n_x, n_z))
+            self._visco = np.ones((grd.n_x, grd.n_z))
 
     def _solve_stokes(self) -> None:
         """Solve the Stokes equation for a given temperature field."""
         self._eval_viscosity()
-        n_x = self._conf.numerical.n_x
-        n_z = self._conf.numerical.n_z
+        n_x = self.grid.n_x
+        n_z = self.grid.n_z
         periodic = self._conf.physical.periodic
         rhsz = np.zeros((n_x, n_z))
         rhsz[:, 1:] = -self._conf.physical.ranum * (
             self.temp[:, :-1] + self.temp[:, 1:]) / 2
 
-        odz = n_z
+        odz = 1 / self.grid.d_z
         odz2 = odz**2
 
         rhs = np.zeros(n_x * n_z * 3)
@@ -267,9 +303,9 @@ class StokesState:
         """
         # compute stabe timestep
         # assumes n_x=n_z. To be generalized
-        dt_diff = 0.1 / self._conf.numerical.n_z**2
+        dt_diff = 0.1 * self.grid.d_z**2
         vmax = np.maximum(np.amax(np.abs(self.v_x)), np.amax(np.abs(self.v_z)))
-        dt_adv = 0.5 / self._conf.numerical.n_z / vmax
+        dt_adv = 0.5 * self.grid.d_z / vmax
         dt = min(dt_diff, dt_adv)
         # diffusion and internal heating
         self.temp = self.temp + dt * (self._del2temp() +
@@ -284,34 +320,31 @@ class StokesState:
         T = 0 at the top
         T = 1 at the bottom
         """
-        n_x = self._conf.numerical.n_x
-        n_z = self._conf.numerical.n_z
+        grd = self.grid
         delsqT = np.zeros_like(self.temp)
-        dsq = n_z**2  # inverse of dz ^ 2
         # should be generalized for non-square grids
-
-        for i in range(n_x):
+        for i in range(grd.n_x):
             if self._conf.physical.periodic:
-                im = (i - 1 + n_x) % n_x
-                ip = (i + 1) % n_x
+                im = (i - 1 + grd.n_x) % grd.n_x
+                ip = (i + 1) % grd.n_x
             else:
                 im = max(i - 1, 0)
-                ip = min(i + 1, n_x - 1)
+                ip = min(i + 1, grd.n_x - 1)
 
-            for j in range(0, n_z):
+            for j in range(0, grd.n_z):
                 T_xm = self.temp[im, j]
                 T_xp = self.temp[ip, j]
                 if j == 0:  # enforce bottom BC
                     T_zm = 2 - self.temp[i, j]
                 else:
                     T_zm = self.temp[i, j - 1]
-                if j == n_z - 1:
+                if j == grd.n_z - 1:
                     T_zp = - self.temp[i, j]
                 else:
                     T_zp = self.temp[i, j + 1]
 
                 delsqT[i, j] = (T_xm + T_xp + T_zm + T_zp -
-                                4 * self.temp[i, j]) * dsq
+                                4 * self.temp[i, j]) / grd.d_z**2
 
         return delsqT
 
@@ -321,25 +354,24 @@ class StokesState:
         temp = self.temp
         v_x = self.v_x
         v_z = self.v_z
-        n_x = self._conf.numerical.n_x
-        n_z = self._conf.numerical.n_z
+        grd = self.grid
 
-        for i in range(n_x):
+        for i in range(grd.n_x):
             if self._conf.physical.periodic:
-                im = (i - 1 + n_x) % n_x
-                ip = (i + 1) % n_x
+                im = (i - 1 + grd.n_x) % grd.n_x
+                ip = (i + 1) % grd.n_x
             else:
                 im = max(i - 1, 0)
-                ip = min(i + 1, n_x - 1)
+                ip = min(i + 1, grd.n_x - 1)
 
-            for j in range(n_z):
+            for j in range(grd.n_z):
                 if i > 0 or self._conf.physical.periodic:
                     flux_xm = temp[im, j] * v_x[i, j] if v_x[i, j] > 0 else\
                         temp[i, j] * v_x[i, j]
                 else:
                     flux_xm = 0
 
-                if i < n_x - 1 or self._conf.physical.periodic:
+                if i < grd.n_x - 1 or self._conf.physical.periodic:
                     flux_xp = temp[i, j] * v_x[ip, j] if v_x[ip, j] > 0 else\
                         temp[ip, j] * v_x[ip, j]
                 else:
@@ -351,13 +383,13 @@ class StokesState:
                 else:
                     flux_zm = 0
 
-                if j < n_z - 1:
+                if j < grd.n_z - 1:
                     flux_zp = temp[i, j] * v_z[i, j + 1] \
                         if v_z[i, j + 1] >= 0 else \
                         temp[i, j + 1] * v_z[i, j + 1]
                 else:
                     flux_zp = 0
-                dtemp[i, j] = (flux_xm - flux_xp + flux_zm - flux_zp) * n_z
+                dtemp[i, j] = (flux_xm - flux_xp + flux_zm - flux_zp) / grd.d_z
                 # assumes d_x = d_z. To be generalized
         return dtemp
 
@@ -370,6 +402,7 @@ class RunManager:
         self._conf = conf
 
         self._fstart = None
+        self.grid = Grid(n_x=conf.numerical.n_x, n_z=conf.numerical.n_z)
         if self.conf.numerical.restart:
             try:
                 self._fstart = max(self.conf.inout.outdir.glob('fields*.npz'))
@@ -377,15 +410,15 @@ class RunManager:
                 pass
         if self._fstart is not None:
             print(f"restarting from {self._fstart}")
-            init_cond = StartFileIC(self._fstart).build_ic(conf)
+            init_cond = StartFileIC(self._fstart).build_ic(self.grid)
         else:
-            init_cond = conf.physical.init_cond.build_ic(conf)
+            init_cond = conf.physical.init_cond.build_ic(self.grid)
 
         self._istart = init_cond.istart
         self.time = init_cond.time
         temp = init_cond.temperature
 
-        self.state = StokesState(temp, conf)
+        self.state = StokesState(temp, self.grid, conf)
 
     @property
     def conf(self) -> Config:
@@ -401,8 +434,6 @@ class RunManager:
         return self.conf.inout.outdir / fname
 
     def _save(self, istep: int) -> None:
-        n_x = self.conf.numerical.n_x
-        n_z = self.conf.numerical.n_z
         fname = self._outfile('fields', istep, 'npz')
         np.savez(fname, T=self.state.temp, vx=self.state.v_x,
                  vz=self.state.v_z, p=self.state.dynp, time=self.time,
@@ -410,18 +441,17 @@ class RunManager:
 
         if not self._conf.inout.figures:
             return
-        xgrid = np.linspace(0, n_x / n_z, n_x)
-        zgrid = np.linspace(0, 1, n_z)
+        grd = self.grid
         fig, axis = plt.subplots()
         # first plot the temperature field
-        surf = axis.pcolormesh(xgrid, zgrid, self.state.temp.T, cmap='RdBu_r',
-                               shading='gouraud')
+        surf = axis.pcolormesh(grd.x_walls, grd.z_walls, self.state.temp.T,
+                               rasterized=True, cmap='RdBu_r')
         cbar = plt.colorbar(surf, shrink=0.5)
         cbar.set_label('Temperature')
         plt.axis('equal')
         plt.axis('off')
         axis.set_adjustable('box')
-        axis.set_xlim(0, n_x / n_z)
+        axis.set_xlim(0, grd.aspect_ratio)
         axis.set_ylim(0, 1)
         # interpolate velocities at the same points for streamlines
         u_x = 0.5 * (self.state.v_x + np.roll(self.state.v_x, 1, 0))
@@ -432,14 +462,14 @@ class RunManager:
         speed = np.sqrt(u_x ** 2 + u_z ** 2)
         # plot the streamlines
         lw = 2 * speed / speed.max()
-        axis.streamplot(xgrid, zgrid, u_x.T, u_z.T, color='k',
+        axis.streamplot(grd.x_centers, grd.z_centers, u_x.T, u_z.T, color='k',
                         linewidth=lw.T)
         fig.savefig(self._outfile('T_v', istep, 'pdf'), bbox_inches='tight')
         plt.close(fig)
 
     def _timeseries(self, istep: int) -> NDArray:
         """Time series diagnostic for one step."""
-        n_z = self.conf.numerical.n_z
+        grd = self.grid
         tseries = np.empty(_NTSERIES)
         tseries[0] = istep
         tseries[1] = self.time
@@ -448,9 +478,9 @@ class RunManager:
         tseries[4] = np.amax(self.state.temp)
         ekin = np.mean(self.state.v_x ** 2 + self.state.v_z ** 2)
         tseries[5] = np.sqrt(ekin)
-        tseries[6] = np.sqrt(np.mean(self.state.v_x[:, n_z - 1] ** 2))
-        tseries[7] = 2 * n_z * (1 - np.mean(self.state.temp[:, 0]))
-        tseries[8] = 2 * n_z * np.mean(self.state.temp[:, n_z - 1])
+        tseries[6] = np.sqrt(np.mean(self.state.v_x[:, grd.n_z - 1] ** 2))
+        tseries[7] = 2 * (1 - np.mean(self.state.temp[:, 0])) / grd.d_z
+        tseries[8] = 2 * np.mean(self.state.temp[:, grd.n_z - 1]) / grd.d_z
         return tseries
 
     def solve(self, progress: bool = False) -> None:

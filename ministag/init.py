@@ -12,7 +12,7 @@ if typing.TYPE_CHECKING:
 
     from numpy.typing import NDArray
 
-    from . config import Config
+    from .solver import Grid
 
 
 @dataclass(frozen=True)
@@ -65,7 +65,7 @@ class ICFactory(ABC):
         return dct
 
     @abstractmethod
-    def build_ic(self, conf: Config) -> InitialCondition:
+    def build_ic(self, grid: Grid) -> InitialCondition:
         """The initial condition."""
 
 
@@ -74,9 +74,9 @@ class RandomIC(ICFactory, ic_name="random"):
     mean_temperature: float = 0.5
     noise_amplitude: float = 1e-2
 
-    def build_ic(self, conf: Config) -> InitialCondition:
+    def build_ic(self, grid: Grid) -> InitialCondition:
         temp = self.noise_amplitude * np.random.uniform(
-            -1, 1, (conf.numerical.n_x, conf.numerical.n_z)
+            -1, 1, (grid.n_x, grid.n_z)
         ) + self.mean_temperature
         return InitialCondition(temperature=temp)
 
@@ -86,13 +86,9 @@ class SineIC(ICFactory, ic_name="sin"):
     mean_temperature: float = 0.5
     amplitude: float = 1e-2
 
-    def build_ic(self, conf: Config) -> InitialCondition:
-        n_x = conf.numerical.n_x
-        n_z = conf.numerical.n_z
-        xgrid = np.linspace(0, n_x / n_z, n_x)
-        zgrid = np.linspace(0, 1, n_z)
+    def build_ic(self, grid: Grid) -> InitialCondition:
         temp = self.mean_temperature + self.amplitude * np.outer(
-            np.sin(np.pi * xgrid), np.sin(np.pi * zgrid))
+            np.sin(np.pi * grid.x_centers), np.sin(np.pi * grid.z_centers))
         return InitialCondition(temperature=temp)
 
 
@@ -100,9 +96,13 @@ class SineIC(ICFactory, ic_name="sin"):
 class StartFileIC(ICFactory, ic_name="from_file"):
     filename: Union[str, PathLike]
 
-    def build_ic(self, conf: Config) -> InitialCondition:
+    def build_ic(self, grid: Grid) -> InitialCondition:
         with np.load(Path(self.filename)) as f_init:
             step = f_init.get("step", 0)
             time = f_init.get("time", 0.0)
             temp = f_init["T"]
+        grd_shape = grid.n_x, grid.n_z
+        if temp.shape != grd_shape:
+            raise RuntimeError(
+                f"Grid in file has shape {temp.shape}, expected {grd_shape}")
         return InitialCondition(temperature=temp, istart=step, time=time)
