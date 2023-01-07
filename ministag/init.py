@@ -18,10 +18,11 @@ if typing.TYPE_CHECKING:
 @dataclass(frozen=True)
 class InitialCondition:
     """An initial condition defined from temperature.
-Attributes:
-        temperature: the temperature field.
-        istart: the starting step number.
-        time: the starting time.
+
+    Attributes:
+            temperature: the temperature field.
+            istart: the starting step number.
+            time: the starting time.
     """
     temperature: NDArray[np.float64]
     istart: int = 0
