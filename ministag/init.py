@@ -9,6 +9,9 @@ import numpy as np
 if typing.TYPE_CHECKING:
     from os import PathLike
     from typing import Dict, Type, Union, Any
+
+    from numpy.typing import NDArray
+
     from . config import Config
 
 
@@ -20,7 +23,7 @@ Attributes:
         istart: the starting step number.
         time: the starting time.
     """
-    temperature: np.ndarray
+    temperature: NDArray[np.float64]
     istart: int = 0
     time: float = 0.0
 

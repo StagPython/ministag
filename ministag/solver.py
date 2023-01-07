@@ -13,7 +13,7 @@ from .init import StartFileIC
 
 if typing.TYPE_CHECKING:
     from typing import Optional, Callable, List
-    from numpy import ndarray
+    from numpy.typing import NDArray
     from .config import Config
 
 
@@ -42,7 +42,7 @@ class SparseMatrix:
         self._cols.append(icol)
         self._coefs.append(value)
 
-    def lu_solver(self) -> Callable[[ndarray], ndarray]:
+    def lu_solver(self) -> Callable[[NDArray], NDArray]:
         """Return a solver based on LU factorization."""
         return factorized(
             sp.csc_matrix((self._coefs, (self._rows, self._cols)),
@@ -102,38 +102,38 @@ class StokesState:
     temperature field.
     """
 
-    def __init__(self, temp: ndarray, conf: Config):
+    def __init__(self, temp: NDArray, conf: Config):
         self._conf = conf
-        self._lumat: Optional[Callable[[ndarray], ndarray]] = None
+        self._lumat: Optional[Callable[[NDArray], NDArray]] = None
         self.temp = temp
 
     @property
-    def temp(self) -> ndarray:
+    def temp(self) -> NDArray:
         return self._temp
 
     @temp.setter
-    def temp(self, field: ndarray) -> None:
+    def temp(self, field: NDArray) -> None:
         self._temp = field
         # keep the state self-consistent
         self._solve_stokes()
 
     @property
-    def viscosity(self) -> ndarray:
+    def viscosity(self) -> NDArray:
         """Viscosity field."""
         return self._visco
 
     @property
-    def v_x(self) -> ndarray:
+    def v_x(self) -> NDArray:
         """Horizontal velocity."""
         return self._v_x
 
     @property
-    def v_z(self) -> ndarray:
+    def v_z(self) -> NDArray:
         """Vertical velocity."""
         return self._v_z
 
     @property
-    def dynp(self) -> ndarray:
+    def dynp(self) -> NDArray:
         """Dynamic pressure."""
         return self._dynp
 
@@ -277,7 +277,7 @@ class StokesState:
                                       self._conf.physical.int_heat)
         return dt
 
-    def _del2temp(self) -> ndarray:
+    def _del2temp(self) -> NDArray:
         """Computes Laplacian of temperature
 
         zero flux BC on the vertical sides for non-periodic cases
@@ -315,7 +315,7 @@ class StokesState:
 
         return delsqT
 
-    def _donor_cell_advection(self) -> ndarray:
+    def _donor_cell_advection(self) -> NDArray:
         """Donor cell advection div(v T)"""
         dtemp = np.zeros_like(self.temp)
         temp = self.temp
@@ -437,7 +437,7 @@ class RunManager:
         fig.savefig(self._outfile('T_v', istep, 'pdf'), bbox_inches='tight')
         plt.close(fig)
 
-    def _timeseries(self, istep: int) -> ndarray:
+    def _timeseries(self, istep: int) -> NDArray:
         """Time series diagnostic for one step."""
         n_z = self.conf.numerical.n_z
         tseries = np.empty(_NTSERIES)
