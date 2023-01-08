@@ -10,7 +10,7 @@ import scipy.sparse as sp
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .evol import Diffusion
+from .evol import Diffusion, DonorCellAdvection
 from .init import StartFileIC
 
 if typing.TYPE_CHECKING:
@@ -305,60 +305,17 @@ class StokesState:
         # compute stabe timestep
         # assumes n_x=n_z. To be generalized
         diff = Diffusion(grid=self.grid, periodic=self._conf.physical.periodic)
-        dt_diff = diff.dt_cfl()
-        vmax = np.maximum(np.amax(np.abs(self.v_x)), np.amax(np.abs(self.v_z)))
-        dt_adv = 0.5 * self.grid.d_z / vmax
-        dt = min(dt_diff, dt_adv)
-        # diffusion and internal heating
+        adv = DonorCellAdvection(
+            grid=self.grid,
+            v_x=self.v_x,
+            v_z=self.v_z,
+            periodic=self._conf.physical.periodic,
+        )
+        dt = min(diff.dt_cfl(), adv.dt_cfl())
         self.temp = self.temp + dt * (diff.eval(self.temp) +
-                                      self._donor_cell_advection() +
+                                      adv.eval(self.temp) +
                                       self._conf.physical.int_heat)
         return dt
-
-    def _donor_cell_advection(self) -> NDArray:
-        """Donor cell advection div(v T)"""
-        dtemp = np.zeros_like(self.temp)
-        temp = self.temp
-        v_x = self.v_x
-        v_z = self.v_z
-        grd = self.grid
-
-        for i in range(grd.n_x):
-            if self._conf.physical.periodic:
-                im = (i - 1 + grd.n_x) % grd.n_x
-                ip = (i + 1) % grd.n_x
-            else:
-                im = max(i - 1, 0)
-                ip = min(i + 1, grd.n_x - 1)
-
-            for j in range(grd.n_z):
-                if i > 0 or self._conf.physical.periodic:
-                    flux_xm = temp[im, j] * v_x[i, j] if v_x[i, j] > 0 else\
-                        temp[i, j] * v_x[i, j]
-                else:
-                    flux_xm = 0
-
-                if i < grd.n_x - 1 or self._conf.physical.periodic:
-                    flux_xp = temp[i, j] * v_x[ip, j] if v_x[ip, j] > 0 else\
-                        temp[ip, j] * v_x[ip, j]
-                else:
-                    flux_xp = 0
-
-                if j > 0:
-                    flux_zm = temp[i, j - 1] * v_z[i, j] \
-                        if v_z[i, j] > 0 else temp[i, j] * v_z[i, j]
-                else:
-                    flux_zm = 0
-
-                if j < grd.n_z - 1:
-                    flux_zp = temp[i, j] * v_z[i, j + 1] \
-                        if v_z[i, j + 1] >= 0 else \
-                        temp[i, j + 1] * v_z[i, j + 1]
-                else:
-                    flux_zp = 0
-                dtemp[i, j] = (flux_xm - flux_xp + flux_zm - flux_zp) / grd.d_z
-                # assumes d_x = d_z. To be generalized
-        return dtemp
 
 
 class RunManager:
