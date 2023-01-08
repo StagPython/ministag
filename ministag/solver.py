@@ -10,6 +10,7 @@ import scipy.sparse as sp
 import matplotlib.pyplot as plt
 import numpy as np
 
+from .evol import Diffusion
 from .init import StartFileIC
 
 if typing.TYPE_CHECKING:
@@ -303,50 +304,16 @@ class StokesState:
         """
         # compute stabe timestep
         # assumes n_x=n_z. To be generalized
-        dt_diff = 0.1 * self.grid.d_z**2
+        diff = Diffusion(grid=self.grid, periodic=self._conf.physical.periodic)
+        dt_diff = diff.dt_cfl()
         vmax = np.maximum(np.amax(np.abs(self.v_x)), np.amax(np.abs(self.v_z)))
         dt_adv = 0.5 * self.grid.d_z / vmax
         dt = min(dt_diff, dt_adv)
         # diffusion and internal heating
-        self.temp = self.temp + dt * (self._del2temp() +
+        self.temp = self.temp + dt * (diff.eval(self.temp) +
                                       self._donor_cell_advection() +
                                       self._conf.physical.int_heat)
         return dt
-
-    def _del2temp(self) -> NDArray:
-        """Computes Laplacian of temperature
-
-        zero flux BC on the vertical sides for non-periodic cases
-        T = 0 at the top
-        T = 1 at the bottom
-        """
-        grd = self.grid
-        delsqT = np.zeros_like(self.temp)
-        # should be generalized for non-square grids
-        for i in range(grd.n_x):
-            if self._conf.physical.periodic:
-                im = (i - 1 + grd.n_x) % grd.n_x
-                ip = (i + 1) % grd.n_x
-            else:
-                im = max(i - 1, 0)
-                ip = min(i + 1, grd.n_x - 1)
-
-            for j in range(0, grd.n_z):
-                T_xm = self.temp[im, j]
-                T_xp = self.temp[ip, j]
-                if j == 0:  # enforce bottom BC
-                    T_zm = 2 - self.temp[i, j]
-                else:
-                    T_zm = self.temp[i, j - 1]
-                if j == grd.n_z - 1:
-                    T_zp = - self.temp[i, j]
-                else:
-                    T_zp = self.temp[i, j + 1]
-
-                delsqT[i, j] = (T_xm + T_xp + T_zm + T_zp -
-                                4 * self.temp[i, j]) / grd.d_z**2
-
-        return delsqT
 
     def _donor_cell_advection(self) -> NDArray:
         """Donor cell advection div(v T)"""
