@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cached_property
 import typing
 
 import numpy as np
@@ -17,6 +18,7 @@ class Diffusion:
     periodic: bool  # should be generalized for any BC, via GC of fed scalar
     cfl_factor: float = 0.4
 
+    @cached_property
     def dt_cfl(self) -> float:
         return self.cfl_factor * self.grid.d_z**2
 
@@ -64,6 +66,7 @@ class DonorCellAdvection:
     periodic: bool  # should be generalized for any BC, via GC of fed scalar
     cfl_factor: float = 0.4
 
+    @cached_property
     def dt_cfl(self) -> float:
         vmax = np.maximum(np.amax(np.abs(self.v_x)), np.amax(np.abs(self.v_z)))
         return self.cfl_factor * self.grid.d_z / vmax
@@ -112,3 +115,18 @@ class DonorCellAdvection:
                     flux_xm - flux_xp + flux_zm - flux_zp) / grd.d_z
                 # assumes d_x = d_z. To be generalized
         return dscalar
+
+
+@dataclass(frozen=True)
+class TimeEvolEquation:
+    diff: Diffusion
+    adv: DonorCellAdvection
+    source: float
+
+    @cached_property
+    def dt_cfl(self) -> float:
+        return min(self.diff.dt_cfl, self.adv.dt_cfl)
+
+    def eval(self, scalar: NDArray) -> NDArray:
+        """Time derivative of temperature."""
+        return self.diff.eval(scalar) + self.adv.eval(scalar) + self.source

@@ -10,7 +10,7 @@ import scipy.sparse as sp
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .evol import Diffusion, DonorCellAdvection
+from .evol import Diffusion, DonorCellAdvection, TimeEvolEquation
 from .init import StartFileIC
 
 if typing.TYPE_CHECKING:
@@ -302,20 +302,21 @@ class StokesState:
         Returns:
             the dt used to forward the state.
         """
-        # compute stabe timestep
-        # assumes n_x=n_z. To be generalized
-        diff = Diffusion(grid=self.grid, periodic=self._conf.physical.periodic)
-        adv = DonorCellAdvection(
-            grid=self.grid,
-            v_x=self.v_x,
-            v_z=self.v_z,
-            periodic=self._conf.physical.periodic,
+        heat_eq = TimeEvolEquation(
+            diff=Diffusion(
+                grid=self.grid,
+                periodic=self._conf.physical.periodic
+            ),
+            adv=DonorCellAdvection(
+                grid=self.grid,
+                v_x=self.v_x,
+                v_z=self.v_z,
+                periodic=self._conf.physical.periodic,
+            ),
+            source=self._conf.physical.int_heat,
         )
-        dt = min(diff.dt_cfl(), adv.dt_cfl())
-        self.temp = self.temp + dt * (diff.eval(self.temp) +
-                                      adv.eval(self.temp) +
-                                      self._conf.physical.int_heat)
-        return dt
+        self.temp = self.temp + heat_eq.dt_cfl * heat_eq.eval(self.temp)
+        return heat_eq.dt_cfl
 
 
 class RunManager:
