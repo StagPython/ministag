@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import cached_property
 import typing
@@ -12,8 +13,19 @@ if typing.TYPE_CHECKING:
     from .solver import Grid
 
 
+class Derivative(ABC):
+    @property
+    @abstractmethod
+    def dt_cfl(self) -> float:
+        """Timestep at allowed CFL number."""
+
+    @abstractmethod
+    def eval(self, scalar: NDArray) -> NDArray:
+        """Derivative of scalar."""
+
+
 @dataclass(frozen=True)
-class Diffusion:
+class Diffusion(Derivative):
     grid: Grid
     periodic: bool  # should be generalized for any BC, via GC of fed scalar
     cfl_factor: float = 0.4
@@ -59,7 +71,7 @@ class Diffusion:
 
 
 @dataclass(frozen=True)
-class DonorCellAdvection:
+class DonorCellAdvection(Derivative):
     grid: Grid
     v_x: NDArray
     v_z: NDArray
@@ -118,7 +130,7 @@ class DonorCellAdvection:
 
 
 @dataclass(frozen=True)
-class TimeEvolEquation:
+class AdvDiffSource(Derivative):
     diff: Diffusion
     adv: DonorCellAdvection
     source: float

@@ -10,7 +10,7 @@ import scipy.sparse as sp
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .evol import Diffusion, DonorCellAdvection, TimeEvolEquation
+from .evol import AdvDiffSource, Diffusion, DonorCellAdvection
 from .init import StartFileIC
 
 if typing.TYPE_CHECKING:
@@ -302,7 +302,7 @@ class StokesState:
         Returns:
             the dt used to forward the state.
         """
-        heat_eq = TimeEvolEquation(
+        heat_eq = AdvDiffSource(
             diff=Diffusion(
                 grid=self.grid,
                 periodic=self._conf.physical.periodic
