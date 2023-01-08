@@ -10,7 +10,7 @@ import scipy.sparse as sp
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .evol import AdvDiffSource, Diffusion, DonorCellAdvection
+from .evol import AdvDiffSource, Diffusion, DonorCellAdvection, EulerExplicit
 from .init import StartFileIC
 
 if typing.TYPE_CHECKING:
@@ -302,7 +302,7 @@ class StokesState:
         Returns:
             the dt used to forward the state.
         """
-        heat_eq = AdvDiffSource(
+        heat_eq = EulerExplicit(AdvDiffSource(
             diff=Diffusion(
                 grid=self.grid,
                 periodic=self._conf.physical.periodic
@@ -314,8 +314,8 @@ class StokesState:
                 periodic=self._conf.physical.periodic,
             ),
             source=self._conf.physical.int_heat,
-        )
-        self.temp = self.temp + heat_eq.dt_cfl * heat_eq.eval(self.temp)
+        ))
+        self.temp = heat_eq.apply_dt_cfl(self.temp)
         return heat_eq.dt_cfl
 
 

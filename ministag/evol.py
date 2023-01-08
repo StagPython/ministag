@@ -142,3 +142,26 @@ class AdvDiffSource(Derivative):
     def eval(self, scalar: NDArray) -> NDArray:
         """Time derivative of temperature."""
         return self.diff.eval(scalar) + self.adv.eval(scalar) + self.source
+
+
+@dataclass(frozen=True)
+class EulerExplicit:
+    derivative: Derivative
+
+    @property
+    def dt_cfl(self) -> float:
+        return self.derivative.dt_cfl
+
+    def apply(self, scalar: NDArray, dt: float) -> NDArray:
+        """Evolved scalar field with provided Derivative.
+
+        Note that this doesn't check for CFL condition.
+        """
+        return scalar + dt * self.derivative.eval(scalar)
+
+    def apply_dt_cfl(self, scalar: NDArray) -> NDArray:
+        """Evolve the scalar field with provided Derivative.
+
+        The timestep is the one provided by the Derivative.
+        """
+        return scalar + self.dt_cfl * self.derivative.eval(scalar)
