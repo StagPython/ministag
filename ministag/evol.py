@@ -164,4 +164,4 @@ class EulerExplicit:
 
         The timestep is the one provided by the Derivative.
         """
-        return scalar + self.dt_cfl * self.derivative.eval(scalar)
+        return self.apply(scalar, self.dt_cfl)
