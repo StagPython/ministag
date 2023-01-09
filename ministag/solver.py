@@ -10,7 +10,7 @@ import numpy as np
 
 from .evol import AdvDiffSource, Diffusion, DonorCellAdvection, EulerExplicit
 from .init import StartFileIC
-from .stokes import StokesEquation
+from .stokes import StokesMatrix, StokesRHS
 
 if typing.TYPE_CHECKING:
     from typing import Optional, Callable
@@ -116,16 +116,18 @@ class StokesState:
         """Solve the Stokes equation for a given temperature field."""
         self._eval_viscosity()
 
-        stokes_eq = StokesEquation(
-            grid=self.grid,
-            viscosity=self.viscosity,
-            periodic=self._conf.physical.periodic,
-            ranum=self._conf.physical.ranum,
-        )
-        spm, rhs = stokes_eq.build_matrix_and_rhs(self.temp)
+        stokes_rhs = StokesRHS(grid=self.grid, ranum=self._conf.physical.ranum)
+        rhs = stokes_rhs.eval(self.temp)
 
         if self._conf.physical.var_visc or self._lumat is None:
+            stokes_mat = StokesMatrix(
+                grid=self.grid,
+                periodic=self._conf.physical.periodic,
+            )
+            # FIXME: let a Rheology object handle viscosity
+            spm = stokes_mat.eval(self.viscosity)
             self._lumat = spm.lu_solver()
+
         sol = self._lumat(rhs)
 
         n_x = self.grid.n_x

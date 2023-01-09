@@ -8,7 +8,7 @@ import numpy as np
 import scipy.sparse as sp
 
 if typing.TYPE_CHECKING:
-    from typing import Callable, List, Tuple
+    from typing import Callable, List
 
     from numpy.typing import NDArray
 
@@ -89,32 +89,57 @@ class SparseMatrix:
 
 
 @dataclass(frozen=True)
-class StokesEquation:
+class StokesRHS:
     grid: Grid
-    viscosity: NDArray  # FIXME: let a Rheology object handle viscosity
-    periodic: bool  # should be generic over BCs
     ranum: float
+    # FIXME: should handle arbitrary BCs
 
-    def build_matrix_and_rhs(
-        self, temp: NDArray
-    ) -> Tuple[SparseMatrix, NDArray]:
+    def eval(self, temp: NDArray) -> NDArray:
         n_x = self.grid.n_x
         n_z = self.grid.n_z
-        periodic = self.periodic
 
+        # Buoyancy -Ra * T, evaluated at vz points
+        # note that rhsz[:, 0] == 0.  This is fine
+        # since the equation for these points is
+        # vz=0.
         rhsz = np.zeros((n_x, n_z))
         rhsz[:, 1:] = -self.ranum * (
             temp[:, :-1] + temp[:, 1:]) / 2
 
+        # RHS is non-zero only along z (rhsz):
+        # - for vx (x-momentum): forcing is 0 (gravity along z), or BC is vx=0
+        # - for vz (z-momentum): rhsz forcing, or BC is vz=0
+        # - for p (continuity): div v = 0, or p = 0 in one cell (for closure)
+        rhs = np.zeros(n_x * n_z * 3)
+        for iz in range(1, n_z):
+            for ix in range(n_x):
+                icell = ix + iz * n_x
+                ieqx = icell * 3
+                ieqz = ieqx + 1
+                rhs[ieqz] = rhsz[ix, iz]
+
+        return rhs
+
+
+@dataclass(frozen=True)
+class StokesMatrix:
+    grid: Grid
+    periodic: bool  # should be generic over BCs
+
+    def eval(self, viscosity: NDArray) -> SparseMatrix:
+        n_x = self.grid.n_x
+        n_z = self.grid.n_z
+        periodic = self.periodic
+
         odz = 1 / self.grid.d_z
         odz2 = odz**2
 
-        rhs = np.zeros(n_x * n_z * 3)
         # indices offset
         idx = 3
         idz = n_x * 3
 
-        spm = SparseMatrix(rhs.size)
+        nvars = n_x * n_z * 3
+        spm = SparseMatrix(nvars)
 
         for iz in range(n_z):
             for ix in range(n_x):
@@ -123,15 +148,14 @@ class StokesEquation:
                 ieqx = icell * 3
                 ieqz = ieqx + 1
                 ieqc = ieqx + 2
-                ieqxp = (ieqx + idx) % rhs.size if periodic else ieqx + idx
+                ieqxp = (ieqx + idx) % nvars if periodic else ieqx + idx
                 ieqzp = ieqxp + 1
-                ieqxpm = (ieqxp - idz) % rhs.size if periodic else ieqxp - idz
-                ieqxm = (ieqx - idx) % rhs.size if periodic else ieqx - idx
+                ieqxpm = (ieqxp - idz) % nvars if periodic else ieqxp - idz
+                ieqxm = (ieqx - idx) % nvars if periodic else ieqx - idx
                 ieqzm = ieqxm + 1
                 ieqcm = ieqxm + 2
 
-                eta = ViscoStencil.eval_at(self.viscosity, ix, iz,
-                                           self.periodic)
+                eta = ViscoStencil.eval_at(viscosity, ix, iz, self.periodic)
 
                 # x-momentum
                 if ix > 0 or periodic:
@@ -151,10 +175,8 @@ class StokesEquation:
                         spm.coef(ieqx, ieqz + idz - idx, -odz2 * eta.xz_zp)
                     if iz > 0:
                         spm.coef(ieqx, ieqx - idz, odz2 * eta.xz_c)
-                    rhs[ieqx] = 0
                 else:
                     spm.coef(ieqx, ieqx, 1)
-                    rhs[ieqx] = 0
 
                 # z-momentum
                 if iz > 0:
@@ -174,10 +196,8 @@ class StokesEquation:
                         spm.coef(ieqz, ieqxpm, -odz2 * eta.xz_xp)
                     if ix > 0 or periodic:
                         spm.coef(ieqz, ieqzm, odz2 * eta.xz_c)
-                    rhs[ieqz] = rhsz[ix, iz]
                 else:
                     spm.coef(ieqz, ieqz, 1)
-                    rhs[ieqz] = 0
 
                 # continuity
                 if ix == 0 and iz == 0:
@@ -189,6 +209,5 @@ class StokesEquation:
                         spm.coef(ieqc, ieqxp, odz)
                     if iz + 1 < n_z:
                         spm.coef(ieqc, ieqz + idz, odz)
-                rhs[ieqc] = 0
 
-        return spm, rhs
+        return spm
