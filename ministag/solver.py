@@ -10,6 +10,7 @@ import numpy as np
 
 from .evol import AdvDiffSource, Diffusion, DonorCellAdvection, EulerExplicit
 from .init import StartFileIC
+from .rheology import Arrhenius, ConstantVisco, Rheology
 from .stokes import StokesMatrix, StokesRHS
 
 if typing.TYPE_CHECKING:
@@ -65,10 +66,13 @@ class StokesState:
     temperature field.
     """
 
-    def __init__(self, temp: NDArray, grid: Grid, conf: Config):
+    def __init__(
+        self, temp: NDArray, grid: Grid, rheology: Rheology, conf: Config
+    ):
         self._conf = conf
         self._lumat: Optional[Callable[[NDArray], NDArray]] = None
         self.grid = grid
+        self.rheology = rheology
         self.temp = temp
 
     @property
@@ -101,20 +105,9 @@ class StokesState:
         """Dynamic pressure."""
         return self._dynp
 
-    def _eval_viscosity(self) -> None:
-        """Compute viscosity for a given temperature field."""
-        grd = self.grid
-        if self._conf.physical.var_visc:
-            a_visc = np.log(self._conf.physical.var_visc_temp)
-            b_visc = np.log(self._conf.physical.var_visc_depth)
-            depth = 0.5 - grd.z_centers
-            self._visco = np.exp(-a_visc * (self.temp - 0.5) + b_visc * depth)
-        else:
-            self._visco = np.ones((grd.n_x, grd.n_z))
-
     def _solve_stokes(self) -> None:
         """Solve the Stokes equation for a given temperature field."""
-        self._eval_viscosity()
+        self._visco = self.rheology.visco(self.temp)
 
         stokes_rhs = StokesRHS(grid=self.grid, ranum=self._conf.physical.ranum)
         rhs = stokes_rhs.eval(self.temp)
@@ -190,7 +183,12 @@ class RunManager:
         self.time = init_cond.time
         temp = init_cond.temperature
 
-        self.state = StokesState(temp, self.grid, conf)
+        rheology = Arrhenius(
+            temp_factor=conf.physical.var_visc_temp,
+            depth_factor=conf.physical.var_visc_depth,
+            grid=self.grid,
+        ) if conf.physical.var_visc else ConstantVisco()
+        self.state = StokesState(temp, self.grid, rheology, conf)
 
     @property
     def conf(self) -> Config:
