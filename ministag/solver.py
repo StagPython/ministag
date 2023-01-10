@@ -10,11 +10,11 @@ import numpy as np
 
 from .evol import AdvDiffSource, Diffusion, DonorCellAdvection, EulerExplicit
 from .init import StartFileIC
-from .rheology import Arrhenius, ConstantVisco, Rheology
+from .rheology import Arrhenius, ConstantVisco
 from .stokes import StokesEquation, StokesMatrix, StokesRHS
 
 if typing.TYPE_CHECKING:
-    from typing import Optional, Callable
+    from typing import Optional
     from numpy.typing import NDArray
     from .config import Config
 
@@ -67,21 +67,12 @@ class StokesState:
     """
 
     def __init__(
-        self, temp: NDArray, grid: Grid, rheology: Rheology, conf: Config
+        self, temp: NDArray, grid: Grid, stokes_eq: StokesEquation,
+        conf: Config
     ):
         self._conf = conf
-        self._lumat: Optional[Callable[[NDArray], NDArray]] = None
         self.grid = grid
-        self.stokes_eq = StokesEquation(
-            lhs=StokesMatrix(
-                grid=self.grid,
-                periodic=self._conf.physical.periodic,
-            ),
-            rhs=StokesRHS(grid=self.grid, ranum=self._conf.physical.ranum),
-            rheology=rheology,
-            grid=self.grid,
-            periodic=self._conf.physical.periodic,
-        )
+        self.stokes_eq = stokes_eq
         self.temp = temp
 
     @property
@@ -171,7 +162,17 @@ class RunManager:
             depth_factor=conf.physical.var_visc_depth,
             grid=self.grid,
         ) if conf.physical.var_visc else ConstantVisco()
-        self.state = StokesState(temp, self.grid, rheology, conf)
+        stokes_eq = StokesEquation(
+            lhs=StokesMatrix(
+                grid=self.grid,
+                periodic=self._conf.physical.periodic,
+            ),
+            rhs=StokesRHS(grid=self.grid, ranum=self._conf.physical.ranum),
+            rheology=rheology,
+            grid=self.grid,
+            periodic=self._conf.physical.periodic,
+        )
+        self.state = StokesState(temp, self.grid, stokes_eq, conf)
 
     @property
     def conf(self) -> Config:
