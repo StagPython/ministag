@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import typing
 
 from scipy.sparse.linalg import factorized
@@ -8,10 +8,11 @@ import numpy as np
 import scipy.sparse as sp
 
 if typing.TYPE_CHECKING:
-    from typing import Callable, List
+    from typing import Callable, List, Optional
 
     from numpy.typing import NDArray
 
+    from .rheology import Rheology
     from .solver import Grid
 
 
@@ -211,3 +212,41 @@ class StokesMatrix:
                         spm.coef(ieqc, ieqz + idz, odz)
 
         return spm
+
+
+@dataclass(frozen=True)
+class StokesSolution:
+    vel_x: NDArray
+    vel_z: NDArray
+    pressure_dyn: NDArray
+
+
+@dataclass(frozen=True)
+class StokesEquation:
+    lhs: StokesMatrix
+    rhs: StokesRHS
+    rheology: Rheology
+    grid: Grid
+    periodic: bool
+    _lumat: Optional[Callable[[NDArray], NDArray]] = field(
+        default=None, init=False, repr=False, compare=False)
+
+    def solve(self, temp: NDArray) -> StokesSolution:
+        if self._lumat is None or self.rheology.is_temp_dependent:
+            visco = self.rheology.visco(temp)
+            spm = self.lhs.eval(visco)
+            object.__setattr__(self, "_lumat", spm.lu_solver())
+        rhs = self.rhs.eval(temp)
+        sol = self._lumat(rhs)  # type: ignore
+
+        n_x = self.grid.n_x
+        n_z = self.grid.n_z
+        v_x = np.reshape(sol[::3], (n_z, n_x)).T
+        # remove drift velocity (unconstrained)
+        # FIXME: should be constrained in Stokes matrix
+        if self.periodic:
+            v_x -= np.mean(v_x)
+        v_z = np.reshape(sol[1::3], (n_z, n_x)).T
+        dynp = np.reshape(sol[2::3], (n_z, n_x)).T
+        dynp -= np.mean(dynp)
+        return StokesSolution(vel_x=v_x, vel_z=v_z, pressure_dyn=dynp)

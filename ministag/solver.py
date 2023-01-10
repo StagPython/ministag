@@ -11,7 +11,7 @@ import numpy as np
 from .evol import AdvDiffSource, Diffusion, DonorCellAdvection, EulerExplicit
 from .init import StartFileIC
 from .rheology import Arrhenius, ConstantVisco, Rheology
-from .stokes import StokesMatrix, StokesRHS
+from .stokes import StokesEquation, StokesMatrix, StokesRHS
 
 if typing.TYPE_CHECKING:
     from typing import Optional, Callable
@@ -72,7 +72,16 @@ class StokesState:
         self._conf = conf
         self._lumat: Optional[Callable[[NDArray], NDArray]] = None
         self.grid = grid
-        self.rheology = rheology
+        self.stokes_eq = StokesEquation(
+            lhs=StokesMatrix(
+                grid=self.grid,
+                periodic=self._conf.physical.periodic,
+            ),
+            rhs=StokesRHS(grid=self.grid, ranum=self._conf.physical.ranum),
+            rheology=rheology,
+            grid=self.grid,
+            periodic=self._conf.physical.periodic,
+        )
         self.temp = temp
 
     @property
@@ -84,11 +93,6 @@ class StokesState:
         self._temp = field
         # keep the state self-consistent
         self._solve_stokes()
-
-    @property
-    def viscosity(self) -> NDArray:
-        """Viscosity field."""
-        return self._visco
 
     @property
     def v_x(self) -> NDArray:
@@ -107,31 +111,10 @@ class StokesState:
 
     def _solve_stokes(self) -> None:
         """Solve the Stokes equation for a given temperature field."""
-        self._visco = self.rheology.visco(self.temp)
-
-        stokes_rhs = StokesRHS(grid=self.grid, ranum=self._conf.physical.ranum)
-        rhs = stokes_rhs.eval(self.temp)
-
-        if self.rheology.is_temp_dependent or self._lumat is None:
-            stokes_mat = StokesMatrix(
-                grid=self.grid,
-                periodic=self._conf.physical.periodic,
-            )
-            # FIXME: let a Rheology object handle viscosity
-            spm = stokes_mat.eval(self.viscosity)
-            self._lumat = spm.lu_solver()
-
-        sol = self._lumat(rhs)
-
-        n_x = self.grid.n_x
-        n_z = self.grid.n_z
-        self._v_x = np.reshape(sol[::3], (n_z, n_x)).T
-        # remove drift velocity (unconstrained)
-        if self._conf.physical.periodic:
-            self._v_x -= np.mean(self._v_x)
-        self._v_z = np.reshape(sol[1::3], (n_z, n_x)).T
-        self._dynp = np.reshape(sol[2::3], (n_z, n_x)).T
-        self._dynp -= np.mean(self._dynp)
+        sol = self.stokes_eq.solve(self.temp)
+        self._v_x = sol.vel_x
+        self._v_z = sol.vel_z
+        self._dynp = sol.pressure_dyn
 
     def step_forward(self) -> float:
         """Update state according to heat equation.
