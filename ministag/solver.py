@@ -11,10 +11,10 @@ import numpy as np
 from .evol import AdvDiffSource, Diffusion, DonorCellAdvection, EulerExplicit
 from .init import StartFileIC
 from .rheology import Arrhenius, ConstantVisco
-from .stokes import StokesEquation, StokesMatrix, StokesRHS
+from .stokes import StokesEquation, StokesMatrix, StokesRHS, StokesSolution
 
 if typing.TYPE_CHECKING:
-    from typing import Optional
+    from typing import Optional, Tuple
     from numpy.typing import NDArray
     from .config import Config
 
@@ -58,79 +58,68 @@ class Grid:
         return (self.z_walls[:-1] + self.z_walls[1:]) / 2
 
 
+@dataclass(frozen=True)
 class StokesState:
-
     """Represent a consistent physical state.
 
     Velocity, pressure, and viscosity fields are all consistent with a given
     temperature field.
     """
+    temp: NDArray
+    grid: Grid
+    stokes_eq: StokesEquation
+    periodic: bool
+    internal_heating: float
 
-    def __init__(
-        self, temp: NDArray, grid: Grid, stokes_eq: StokesEquation,
-        conf: Config
-    ):
-        self._conf = conf
-        self.grid = grid
-        self.stokes_eq = stokes_eq
-        self.temp = temp
-
-    @property
-    def temp(self) -> NDArray:
-        return self._temp
-
-    @temp.setter
-    def temp(self, field: NDArray) -> None:
-        self._temp = field
-        # keep the state self-consistent
-        self._solve_stokes()
+    @cached_property
+    def _stokes_sol(self) -> StokesSolution:
+        return self.stokes_eq.solve(self.temp)
 
     @property
     def v_x(self) -> NDArray:
         """Horizontal velocity."""
-        return self._v_x
+        return self._stokes_sol.vel_x
 
     @property
     def v_z(self) -> NDArray:
         """Vertical velocity."""
-        return self._v_z
+        return self._stokes_sol.vel_z
 
     @property
     def dynp(self) -> NDArray:
         """Dynamic pressure."""
-        return self._dynp
+        return self._stokes_sol.pressure_dyn
 
-    def _solve_stokes(self) -> None:
-        """Solve the Stokes equation for a given temperature field."""
-        sol = self.stokes_eq.solve(self.temp)
-        self._v_x = sol.vel_x
-        self._v_z = sol.vel_z
-        self._dynp = sol.pressure_dyn
-
-    def step_forward(self) -> float:
+    def step_forward(self) -> Tuple[float, StokesState]:
         """Update state according to heat equation.
 
         Note that the Stokes equation is solved as well to keep the state
         self-consistent.
 
         Returns:
-            the dt used to forward the state.
+            the dt used to forward the state and the next state.
         """
         heat_eq = EulerExplicit(AdvDiffSource(
             diff=Diffusion(
                 grid=self.grid,
-                periodic=self._conf.physical.periodic
+                periodic=self.periodic
             ),
             adv=DonorCellAdvection(
                 grid=self.grid,
                 v_x=self.v_x,
                 v_z=self.v_z,
-                periodic=self._conf.physical.periodic,
+                periodic=self.periodic,
             ),
-            source=self._conf.physical.int_heat,
+            source=self.internal_heating,
         ))
-        self.temp = heat_eq.apply_dt_cfl(self.temp)
-        return heat_eq.dt_cfl
+        next_state = StokesState(
+            temp=heat_eq.apply_dt_cfl(self.temp),
+            grid=self.grid,
+            stokes_eq=self.stokes_eq,
+            periodic=self.periodic,
+            internal_heating=self.internal_heating,
+        )
+        return heat_eq.dt_cfl, next_state
 
 
 class RunManager:
@@ -172,7 +161,13 @@ class RunManager:
             grid=self.grid,
             periodic=self._conf.physical.periodic,
         )
-        self.state = StokesState(temp, self.grid, stokes_eq, conf)
+        self.state = StokesState(
+            temp=temp,
+            grid=self.grid,
+            stokes_eq=stokes_eq,
+            periodic=conf.physical.periodic,
+            internal_heating=conf.physical.int_heat,
+        )
 
     @property
     def conf(self) -> Config:
@@ -264,7 +259,7 @@ class RunManager:
         for irun, istep in enumerate(range(self._istart + 1, nsteps + 1)):
             if progress:
                 print(step_msg.format(istep), end='')
-            dtime = self.state.step_forward()
+            dtime, self.state = self.state.step_forward()
             self.time += dtime
             tseries[irun % nwrite] = self._timeseries(istep)
             if (irun + 1) % nwrite == 0:
