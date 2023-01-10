@@ -19,11 +19,20 @@ class Rheology(ABC):
     def visco(self, temp: NDArray) -> NDArray:
         """Viscosity for a given temperature."""
 
+    @property
+    @abstractmethod
+    def is_temp_dependent(self) -> bool:
+        """Whether the viscosity depends on temperature."""
+
 
 class ConstantVisco(Rheology):
 
     def visco(self, temp: NDArray) -> NDArray:
         return np.ones_like(temp)
+
+    @property
+    def is_temp_dependent(self) -> bool:
+        return False
 
 
 @dataclass(frozen=True)
@@ -47,3 +56,7 @@ class Arrhenius(Rheology):
     def visco(self, temp: NDArray) -> NDArray:
         return np.exp(self.temp_coef * (0.5 - temp) +
                       self.depth_coef * self.depth)
+
+    @property
+    def is_temp_dependent(self) -> bool:
+        return self.temp_factor != 1.

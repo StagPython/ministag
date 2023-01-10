@@ -112,7 +112,7 @@ class StokesState:
         stokes_rhs = StokesRHS(grid=self.grid, ranum=self._conf.physical.ranum)
         rhs = stokes_rhs.eval(self.temp)
 
-        if self._conf.physical.var_visc or self._lumat is None:
+        if self.rheology.is_temp_dependent or self._lumat is None:
             stokes_mat = StokesMatrix(
                 grid=self.grid,
                 periodic=self._conf.physical.periodic,
