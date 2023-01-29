@@ -1,14 +1,15 @@
 from __future__ import annotations
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, asdict
-from pathlib import Path
+
 import typing
+from abc import ABC, abstractmethod
+from dataclasses import asdict, dataclass
+from pathlib import Path
 
 import numpy as np
 
 if typing.TYPE_CHECKING:
     from os import PathLike
-    from typing import Dict, Type, Union, Any
+    from typing import Any, Dict, Type, Union
 
     from numpy.typing import NDArray
 
@@ -24,6 +25,7 @@ class InitialCondition:
             istart: the starting step number.
             time: the starting time.
     """
+
     temperature: NDArray[np.float64]
     istart: int = 0
     time: float = 0.0
@@ -75,9 +77,10 @@ class RandomIC(ICFactory, ic_name="random"):
     noise_amplitude: float = 1e-2
 
     def build_ic(self, grid: Grid) -> InitialCondition:
-        temp = self.noise_amplitude * np.random.uniform(
-            -1, 1, (grid.n_x, grid.n_z)
-        ) + self.mean_temperature
+        temp = (
+            self.noise_amplitude * np.random.uniform(-1, 1, (grid.n_x, grid.n_z))
+            + self.mean_temperature
+        )
         return InitialCondition(temperature=temp)
 
 
@@ -88,7 +91,8 @@ class SineIC(ICFactory, ic_name="sin"):
 
     def build_ic(self, grid: Grid) -> InitialCondition:
         temp = self.mean_temperature + self.amplitude * np.outer(
-            np.sin(np.pi * grid.x_centers), np.sin(np.pi * grid.z_centers))
+            np.sin(np.pi * grid.x_centers), np.sin(np.pi * grid.z_centers)
+        )
         return InitialCondition(temperature=temp)
 
 
@@ -104,5 +108,6 @@ class StartFileIC(ICFactory, ic_name="from_file"):
         grd_shape = grid.n_x, grid.n_z
         if temp.shape != grd_shape:
             raise RuntimeError(
-                f"Grid in file has shape {temp.shape}, expected {grd_shape}")
+                f"Grid in file has shape {temp.shape}, expected {grd_shape}"
+            )
         return InitialCondition(temperature=temp, istart=step, time=time)

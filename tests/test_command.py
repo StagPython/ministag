@@ -1,6 +1,7 @@
-from contextlib import contextmanager
 import os
 import subprocess
+from contextlib import contextmanager
+
 import toml
 
 
@@ -15,11 +16,11 @@ def safecd(newdir):
 
 
 def test_bare_command(tmp_path, minconf):
-    with (tmp_path / 'par.toml').open('w') as parfile:
+    with (tmp_path / "par.toml").open("w") as parfile:
         toml.dump(minconf, parfile)
     with safecd(tmp_path):
-        subprocess.run('ministag', shell=True)
-        odir = tmp_path / 'output'
+        subprocess.run("ministag", shell=True)
+        odir = tmp_path / "output"
         assert odir.is_dir()
-        assert (odir / 'par.toml').is_file()
-        assert (odir / 'time.h5').is_file()
+        assert (odir / "par.toml").is_file()
+        assert (odir / "time.h5").is_file()

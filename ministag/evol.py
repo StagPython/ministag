@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import typing
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import cached_property
-import typing
 
 import numpy as np
 
@@ -60,12 +60,13 @@ class Diffusion(Derivative):
                 else:
                     T_zm = scalar[i, j - 1]
                 if j == grd.n_z - 1:
-                    T_zp = - scalar[i, j]
+                    T_zp = -scalar[i, j]
                 else:
                     T_zp = scalar[i, j + 1]
 
-                delsqT[i, j] = (T_xm + T_xp + T_zm + T_zp -
-                                4 * scalar[i, j]) / grd.d_z**2
+                delsqT[i, j] = (
+                    T_xm + T_xp + T_zm + T_zp - 4 * scalar[i, j]
+                ) / grd.d_z**2
 
         return delsqT
 
@@ -100,31 +101,41 @@ class DonorCellAdvection(Derivative):
 
             for j in range(grd.n_z):
                 if i > 0 or self.periodic:
-                    flux_xm = scalar[im, j] * v_x[i, j] if v_x[i, j] > 0 else\
-                        scalar[i, j] * v_x[i, j]
+                    flux_xm = (
+                        scalar[im, j] * v_x[i, j]
+                        if v_x[i, j] > 0
+                        else scalar[i, j] * v_x[i, j]
+                    )
                 else:
                     flux_xm = 0
 
                 if i < grd.n_x - 1 or self.periodic:
-                    flux_xp = scalar[i, j] * v_x[ip, j] if v_x[ip, j] > 0 else\
-                        scalar[ip, j] * v_x[ip, j]
+                    flux_xp = (
+                        scalar[i, j] * v_x[ip, j]
+                        if v_x[ip, j] > 0
+                        else scalar[ip, j] * v_x[ip, j]
+                    )
                 else:
                     flux_xp = 0
 
                 if j > 0:
-                    flux_zm = scalar[i, j - 1] * v_z[i, j] \
-                        if v_z[i, j] > 0 else scalar[i, j] * v_z[i, j]
+                    flux_zm = (
+                        scalar[i, j - 1] * v_z[i, j]
+                        if v_z[i, j] > 0
+                        else scalar[i, j] * v_z[i, j]
+                    )
                 else:
                     flux_zm = 0
 
                 if j < grd.n_z - 1:
-                    flux_zp = scalar[i, j] * v_z[i, j + 1] \
-                        if v_z[i, j + 1] >= 0 else \
-                        scalar[i, j + 1] * v_z[i, j + 1]
+                    flux_zp = (
+                        scalar[i, j] * v_z[i, j + 1]
+                        if v_z[i, j + 1] >= 0
+                        else scalar[i, j + 1] * v_z[i, j + 1]
+                    )
                 else:
                     flux_zp = 0
-                dscalar[i, j] = (
-                    flux_xm - flux_xp + flux_zm - flux_zp) / grd.d_z
+                dscalar[i, j] = (flux_xm - flux_xp + flux_zm - flux_zp) / grd.d_z
                 # assumes d_x = d_z. To be generalized
         return dscalar
 

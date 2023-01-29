@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import typing
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import cached_property
-import typing
 
 import numpy as np
 
@@ -14,7 +14,6 @@ if typing.TYPE_CHECKING:
 
 
 class Rheology(ABC):
-
     @abstractmethod
     def visco(self, temp: NDArray) -> NDArray:
         """Viscosity for a given temperature."""
@@ -26,7 +25,6 @@ class Rheology(ABC):
 
 
 class ConstantVisco(Rheology):
-
     def visco(self, temp: NDArray) -> NDArray:
         return np.ones_like(temp)
 
@@ -54,9 +52,8 @@ class Arrhenius(Rheology):
         return np.log(self.depth_factor)
 
     def visco(self, temp: NDArray) -> NDArray:
-        return np.exp(self.temp_coef * (0.5 - temp) +
-                      self.depth_coef * self.depth)
+        return np.exp(self.temp_coef * (0.5 - temp) + self.depth_coef * self.depth)
 
     @property
     def is_temp_dependent(self) -> bool:
-        return self.temp_factor != 1.
+        return self.temp_factor != 1.0

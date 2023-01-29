@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import typing
+from dataclasses import dataclass, field
 
-from scipy.sparse.linalg import factorized
 import numpy as np
 import scipy.sparse as sp
+from scipy.sparse.linalg import factorized
 
 if typing.TYPE_CHECKING:
     from typing import Callable, List, Optional
@@ -28,9 +28,7 @@ class ViscoStencil:
     xz_zp: float
 
     @staticmethod
-    def eval_at(
-        visco: NDArray, ix: int, iz: int, periodic: bool
-    ) -> ViscoStencil:
+    def eval_at(visco: NDArray, ix: int, iz: int, periodic: bool) -> ViscoStencil:
         """Viscosity around a grid point."""
         n_x, n_z = visco.shape
 
@@ -42,22 +40,31 @@ class ViscoStencil:
         etaii_xm = visco[ixm, iz] if ix > 0 or periodic else 0
         etaii_zm = visco[ix, iz - 1] if iz > 0 else 0
         if (ix > 0 or periodic) and iz > 0:
-            etaxz_c = (visco[ix, iz] * visco[ixm, iz] *
-                       visco[ix, iz - 1] * visco[ixm, iz - 1])**0.25
+            etaxz_c = (
+                visco[ix, iz] * visco[ixm, iz] * visco[ix, iz - 1] * visco[ixm, iz - 1]
+            ) ** 0.25
         else:
             etaxz_c = 0
         if (ix > 0 or periodic) and iz < n_z - 1:
-            etaxz_zp = (visco[ix, iz + 1] * visco[ixm, iz + 1] *
-                        visco[ix, iz] * visco[ixm, iz])**0.25
+            etaxz_zp = (
+                visco[ix, iz + 1] * visco[ixm, iz + 1] * visco[ix, iz] * visco[ixm, iz]
+            ) ** 0.25
         else:
             etaxz_zp = 0
         if (ix < n_x - 1 or periodic) and iz > 0:
-            etaxz_xp = (visco[ixp, iz] * visco[ix, iz] *
-                        visco[ixp, iz - 1] * visco[ix, iz - 1])**0.25
+            etaxz_xp = (
+                visco[ixp, iz] * visco[ix, iz] * visco[ixp, iz - 1] * visco[ix, iz - 1]
+            ) ** 0.25
         else:
             etaxz_xp = 0
-        return ViscoStencil(ctr=etaii_c, x_m=etaii_xm, z_m=etaii_zm,
-                            xz_c=etaxz_c, xz_xp=etaxz_xp, xz_zp=etaxz_zp)
+        return ViscoStencil(
+            ctr=etaii_c,
+            x_m=etaii_xm,
+            z_m=etaii_zm,
+            xz_c=etaxz_c,
+            xz_xp=etaxz_xp,
+            xz_zp=etaxz_zp,
+        )
 
 
 class SparseMatrix:
@@ -85,8 +92,10 @@ class SparseMatrix:
     def lu_solver(self) -> Callable[[NDArray], NDArray]:
         """Return a solver based on LU factorization."""
         return factorized(
-            sp.csc_matrix((self._coefs, (self._rows, self._cols)),
-                          shape=(self._size, self._size)))
+            sp.csc_matrix(
+                (self._coefs, (self._rows, self._cols)), shape=(self._size, self._size)
+            )
+        )
 
 
 @dataclass(frozen=True)
@@ -104,8 +113,7 @@ class StokesRHS:
         # since the equation for these points is
         # vz=0.
         rhsz = np.zeros((n_x, n_z))
-        rhsz[:, 1:] = -self.ranum * (
-            temp[:, :-1] + temp[:, 1:]) / 2
+        rhsz[:, 1:] = -self.ranum * (temp[:, :-1] + temp[:, 1:]) / 2
 
         # RHS is non-zero only along z (rhsz):
         # - for vx (x-momentum): forcing is 0 (gravity along z), or BC is vx=0
@@ -160,8 +168,11 @@ class StokesMatrix:
 
                 # x-momentum
                 if ix > 0 or periodic:
-                    spm.coef(ieqx, ieqx, -odz2 * (2 * eta.ctr + 2 * eta.x_m +
-                                                  eta.xz_c + eta.xz_zp))
+                    spm.coef(
+                        ieqx,
+                        ieqx,
+                        -odz2 * (2 * eta.ctr + 2 * eta.x_m + eta.xz_c + eta.xz_zp),
+                    )
                     spm.coef(ieqx, ieqxm, 2 * odz2 * eta.x_m)
                     spm.coef(ieqx, ieqz, -odz2 * eta.xz_c)
                     spm.coef(ieqx, ieqzm, odz2 * eta.xz_c)
@@ -181,8 +192,11 @@ class StokesMatrix:
 
                 # z-momentum
                 if iz > 0:
-                    spm.coef(ieqz, ieqz, -odz2 * (2 * eta.ctr + 2 * eta.z_m +
-                                                  eta.xz_c + eta.xz_xp))
+                    spm.coef(
+                        ieqz,
+                        ieqz,
+                        -odz2 * (2 * eta.ctr + 2 * eta.z_m + eta.xz_c + eta.xz_xp),
+                    )
                     spm.coef(ieqz, ieqz - idz, 2 * odz2 * eta.z_m)
                     spm.coef(ieqz, ieqx, -odz2 * eta.xz_c)
                     spm.coef(ieqz, ieqx - idz, odz2 * eta.xz_c)
@@ -229,7 +243,8 @@ class StokesEquation:
     grid: Grid
     periodic: bool
     _lumat: Optional[Callable[[NDArray], NDArray]] = field(
-        default=None, init=False, repr=False, compare=False)
+        default=None, init=False, repr=False, compare=False
+    )
 
     def solve(self, temp: NDArray) -> StokesSolution:
         if self._lumat is None or self.rheology.is_temp_dependent:
