@@ -41,6 +41,9 @@ ministag = "ministag.__main__:main"
 include = ["ministag"]
 namespaces = false
 
+[tool.setuptools.package-data]
+ministag = ["py.typed"]
+
 [tool.mypy]
 disallow_untyped_defs = true
 
