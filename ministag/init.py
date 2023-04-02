@@ -63,7 +63,7 @@ class ICFactory(ABC):
 
     def to_dict(self) -> Dict[str, Any]:
         dct = {"name": self._ic_name}  # type: ignore
-        dct.update(asdict(self))
+        dct.update(asdict(self))  # type: ignore
         return dct
 
     @abstractmethod
