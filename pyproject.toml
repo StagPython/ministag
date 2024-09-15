@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ministag"
 version = "0.1.0"
 description = "2D infinite-Prandtl convection code"
-readme = "README.rst"
+readme = "README.md"
 authors = [
     {name = "Adrien Morison", email = "adrien.morison@gmail.com"},
     {name = "Stéphane Labrosse"},
