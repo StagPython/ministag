@@ -68,7 +68,6 @@ class ViscoStencil:
 
 
 class SparseMatrix:
-
     """Sparse matrix."""
 
     def __init__(self, size: int):

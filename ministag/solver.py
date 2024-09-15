@@ -126,7 +126,6 @@ class StokesState:
 
 
 class RunManager:
-
     """Simulation of the Rayleigh Bénard convection problem."""
 
     def __init__(self, conf: Config):
