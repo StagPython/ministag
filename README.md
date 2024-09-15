@@ -19,7 +19,7 @@ the repository (i.e. where the `pyproject.toml` file is):
 uv tool install .
 ```
 
-This installs `ministag` in a dedicated virtual environment and make it
+This installs `ministag` in a dedicated virtual environment and makes it
 available in a standard location (usually `~/.local/bin`).
 
 Running
