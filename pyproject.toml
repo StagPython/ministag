@@ -45,6 +45,10 @@ namespaces = false
 [tool.setuptools.package-data]
 ministag = ["py.typed"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
 [tool.mypy]
 disallow_untyped_defs = true
 
