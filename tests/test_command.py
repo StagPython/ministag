@@ -2,12 +2,13 @@ import os
 import subprocess
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
 
 import toml
 
 
 @contextmanager
-def safecd(newdir: Path):
+def safecd(newdir: Path) -> Iterator[Path]:
     olddir = Path.cwd()
     try:
         os.chdir(newdir)
@@ -16,7 +17,7 @@ def safecd(newdir: Path):
         os.chdir(olddir)
 
 
-def test_bare_command(tmp_path, minconf):
+def test_bare_command(tmp_path: Path, minconf: dict[str, dict[str, int]]) -> None:
     with (tmp_path / "par.toml").open("w") as parfile:
         toml.dump(minconf, parfile)
     with safecd(tmp_path):

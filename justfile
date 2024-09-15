@@ -16,7 +16,7 @@ format:
 
 # check static typing annotations
 typecheck:
-    uv run -- mypy src/ministag
+    uv run -- mypy .
 
 # run test suite
 test:
