@@ -1,9 +1,4 @@
 /uv.lock
-*.swp
 *.egg-info
 __pycache__
-.coverage
-.pytest_cache
-.tox
-/build
-/venv_*
+/.coverage
