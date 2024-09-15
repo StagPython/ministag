@@ -77,8 +77,9 @@ class RandomIC(ICFactory, ic_name="random"):
     noise_amplitude: float = 1e-2
 
     def build_ic(self, grid: Grid) -> InitialCondition:
+        rng = np.random.default_rng()
         temp = (
-            self.noise_amplitude * np.random.uniform(-1, 1, (grid.n_x, grid.n_z))
+            self.noise_amplitude * rng.uniform(-1, 1, (grid.n_x, grid.n_z))
             + self.mean_temperature
         )
         return InitialCondition(temperature=temp)
