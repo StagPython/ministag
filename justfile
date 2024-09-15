@@ -16,8 +16,8 @@ format:
 
 # check static typing annotations
 typecheck:
-    uv run -- mypy ministag
+    uv run -- mypy src/ministag
 
 # run test suite
 test:
-    uv run -- pytest --cov=./ministag --cov-report term-missing
+    uv run -- pytest --cov=src/ministag --cov-report term-missing
