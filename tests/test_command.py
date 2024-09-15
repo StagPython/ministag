@@ -1,15 +1,16 @@
 import os
 import subprocess
 from contextlib import contextmanager
+from pathlib import Path
 
 import toml
 
 
 @contextmanager
-def safecd(newdir):
-    olddir = os.getcwd()
+def safecd(newdir: Path):
+    olddir = Path.cwd()
     try:
-        os.chdir(str(newdir))
+        os.chdir(newdir)
         yield newdir
     finally:
         os.chdir(olddir)
